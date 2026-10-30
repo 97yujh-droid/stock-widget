@@ -173,22 +173,53 @@ def treasury_10y():
     return f"{row[0]} 10년 {row[head.index('10 Yr')]}"
 
 
+# ---------- 3차 시험: FRED 공식 통로 + Margin Debt 다른 출처 ----------
+FRED_KEY = os.environ.get("FRED_API_KEY", "")
+
+
+def hide_key(msg):
+    return str(msg).replace(FRED_KEY, "***") if FRED_KEY else str(msg)
+
+
+def fred_api(series):
+    if not FRED_KEY:
+        raise RuntimeError("FRED_API_KEY 가 비어 있음")
+    base = "https://api.stlouisfed.org/fred"
+    try:
+        info = get(f"{base}/series", params={"series_id": series, "api_key": FRED_KEY,
+                                             "file_type": "json"}).json()["seriess"][0]
+        obs = get(f"{base}/series/observations",
+                  params={"series_id": series, "api_key": FRED_KEY, "file_type": "json",
+                          "sort_order": "desc", "limit": 5}).json()["observations"]
+    except Exception as e:
+        raise RuntimeError(hide_key(e)) from None
+    o = next(x for x in obs if x["value"] != ".")
+    return f"{o['value']} (날짜 {o['date']}, 미국) / FRED 마지막 갱신: {info['last_updated']}"
+
+
+def try_page(url, must):
+    r = S.get(url, timeout=TIMEOUT, headers={
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"})
+    r.raise_for_status()
+    txt = r.text
+    hit = must.lower() in txt.lower()
+    links = re.findall(r'href="([^"]+\.xlsx?)"', txt)[:2]
+    return f"{r.status_code}, {len(txt):,}자, '{must}' {'있음' if hit else '없음'}, 엑셀링크 {links}"
+
+
 TESTS = [
-    ("기준", "삼성전자 (네이버)", lambda: naver_stock("005930")),
-    ("미국 주식", "엔비디아 (네이버)", lambda: naver_world("NVDA.O")),
-    ("미국 주식", "TSMC (네이버)", lambda: naver_world("TSM.N")),
-    ("지표", "원/달러 (네이버)", lambda: naver_index(
-        "https://m.stock.naver.com/front-api/marketIndex/productDetail?category=exchange&reutersCode=FX_USDKRW")),
-    ("묶음", "CNBC (10년물·VIX·달러지수·환율·엔비디아)", lambda: cnbc("US10Y|.VIX|.DXY|KRW=|NVDA")),
-    ("미국 주식", "엔비디아 (stooq)", lambda: stooq("nvda.us")),
-    ("지표", "달러지수 (stooq)", lambda: stooq("dx.f")),
-    ("지표", "미국 10년물 (stooq)", lambda: stooq("10usy.b")),
-    ("지표", "VIX (CBOE 공식)", cboe_vix),
-    ("지표", "미국 10년물 (미 재무부)", treasury_10y),
-    ("미국 주식", "엔비디아 (야후, 쿠키 방식)", lambda: yahoo_crumb("NVDA")),
-    ("지표", "하이일드 (FRED, 60초 대기)", lambda: fred_slow("BAMLH0A0HYM2")),
-    ("지표", "하이일드 (FRED 텍스트)", lambda: fred_txt("BAMLH0A0HYM2")),
-    ("지표", "Margin Debt (FINRA 엑셀 직접)", finra_direct),
+    ("지표", "하이일드 스프레드 (FRED 공식 API)", lambda: fred_api("BAMLH0A0HYM2")),
+    ("지표", "미국 10년물 (FRED 공식 API, 예비)", lambda: fred_api("DGS10")),
+    ("Margin", "FINRA 옛 주소", lambda: try_page(
+        "https://www.finra.org/rules-guidance/key-topics/margin-accounts/margin-statistics", "margin")),
+    ("Margin", "FINRA 데이터 API", lambda: try_page(
+        "https://api.finra.org/metadata/group/finra/name/marginStatistics", "margin")),
+    ("Margin", "longtermtrends", lambda: try_page("https://www.longtermtrends.net/margin-debt/", "margin")),
+    ("Margin", "gurufocus", lambda: try_page(
+        "https://www.gurufocus.com/economic_indicators/4266/finra-investor-margin-debt", "margin")),
+    ("Margin", "ycharts", lambda: try_page("https://ycharts.com/indicators/finra_margin_debt", "margin")),
+    ("Margin", "advisorperspectives", lambda: try_page(
+        "https://www.advisorperspectives.com/dshort/updates/latest/margin-debt", "margin")),
 ]
 
 

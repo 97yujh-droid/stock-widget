@@ -105,22 +105,90 @@ def gnews(q):
     return f"{len(items)}건. 예: {items[0].findtext('title')[:60]}"
 
 
+# ---------- 2차 시험: 막힌 항목의 다른 출처 ----------
+def short(txt, n=160):
+    return " ".join(str(txt).split())[:n]
+
+
+def naver_world(code):
+    j = get(f"https://api.stock.naver.com/stock/{code}/basic").json()
+    return f"{j.get('stockName')} {j.get('closePrice')} {j.get('fluctuationsRatio')}% ({str(j.get('localTradedAt'))[:16]})"
+
+
+def naver_index(url):
+    return short(get(url).text, 220)
+
+
+def cnbc(symbols):
+    url = ("https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol"
+           f"?symbols={quote(symbols)}&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json")
+    q = get(url).json()["FormattedQuoteResult"]["FormattedQuote"]
+    return " / ".join(f"{x.get('symbol')} {x.get('last')} {x.get('change_pct')} @{x.get('last_time', '')[:16]}" for x in q)
+
+
+def stooq(sym):
+    return short(get(f"https://stooq.com/q/l/?s={sym}&f=sd2t2c&h&e=csv").text)
+
+
+def cboe_vix():
+    rows = get("https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv").text.strip().splitlines()
+    return f"마지막 줄: {rows[-1]}"
+
+
+def yahoo_crumb(symbol):
+    S.get("https://fc.yahoo.com", timeout=TIMEOUT)
+    crumb = get("https://query2.finance.yahoo.com/v1/test/getcrumb").text
+    url = f"https://query2.finance.yahoo.com/v8/finance/chart/{quote(symbol)}?range=5d&interval=1d&crumb={quote(crumb)}"
+    m = get(url).json()["chart"]["result"][0]["meta"]
+    return f"{m['regularMarketPrice']} 기준 {ts(m['regularMarketTime'])} KST"
+
+
+def fred_slow(series):
+    r = S.get(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series}", timeout=60)
+    r.raise_for_status()
+    return short(r.text.strip().splitlines()[-1])
+
+
+def fred_txt(series):
+    r = S.get(f"https://fred.stlouisfed.org/data/{series}.txt", timeout=60)
+    r.raise_for_status()
+    return short(r.text.strip().splitlines()[-1])
+
+
+def finra_direct():
+    h = {"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+         "Referer": "https://www.finra.org/"}
+    r = S.get("https://www.finra.org/sites/default/files/2021-03/margin-statistics.xlsx", headers=h, timeout=TIMEOUT)
+    r.raise_for_status()
+    return f"{len(r.content):,} 바이트, 종류 {r.headers.get('content-type')}"
+
+
+def treasury_10y():
+    y = datetime.now(KST).year
+    url = ("https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/"
+           f"{y}/all?type=daily_treasury_yield_curve&field_tdr_date_value={y}&page&_format=csv")
+    lines = get(url).text.strip().splitlines()
+    head = lines[0].split(",")
+    row = lines[1].split(",")
+    return f"{row[0]} 10년 {row[head.index('10 Yr')]}"
+
+
 TESTS = [
-    ("국내 주식", "삼성전자 (네이버)", lambda: naver_stock("005930")),
-    ("국내 주식", "SK하이닉스 (네이버)", lambda: naver_stock("000660")),
-    ("국내 주식", "삼성전자 (야후, 예비)", lambda: yahoo("005930.KS")),
-    ("미국 주식", "엔비디아 (야후)", lambda: yahoo("NVDA")),
-    ("미국 주식", "TSMC (야후)", lambda: yahoo("TSM")),
-    ("지표", "원/달러 환율 (야후)", lambda: yahoo("KRW=X")),
-    ("지표", "달러지수 (야후)", lambda: yahoo("DX-Y.NYB")),
-    ("지표", "미국 10년물 금리 (야후)", lambda: yahoo("^TNX")),
-    ("지표", "미국 10년물 금리 (FRED, 예비)", lambda: fred_csv("DGS10")),
-    ("지표", "VIX (야후)", lambda: yahoo("^VIX")),
-    ("지표", "하이일드 스프레드 (FRED)", lambda: fred_csv("BAMLH0A0HYM2")),
-    ("지표", "Margin Debt (FINRA)", finra_margin),
-    ("지표", "공포탐욕지수 (CNN)", cnn_fg),
-    ("뉴스", "삼성전자 뉴스 (구글)", lambda: gnews("삼성전자")),
-    ("뉴스", "엔비디아 뉴스 (구글)", lambda: gnews("엔비디아")),
+    ("기준", "삼성전자 (네이버)", lambda: naver_stock("005930")),
+    ("미국 주식", "엔비디아 (네이버)", lambda: naver_world("NVDA.O")),
+    ("미국 주식", "TSMC (네이버)", lambda: naver_world("TSM.N")),
+    ("지표", "원/달러 (네이버)", lambda: naver_index(
+        "https://m.stock.naver.com/front-api/marketIndex/productDetail?category=exchange&reutersCode=FX_USDKRW")),
+    ("묶음", "CNBC (10년물·VIX·달러지수·환율·엔비디아)", lambda: cnbc("US10Y|.VIX|.DXY|KRW=|NVDA")),
+    ("미국 주식", "엔비디아 (stooq)", lambda: stooq("nvda.us")),
+    ("지표", "달러지수 (stooq)", lambda: stooq("dx.f")),
+    ("지표", "미국 10년물 (stooq)", lambda: stooq("10usy.b")),
+    ("지표", "VIX (CBOE 공식)", cboe_vix),
+    ("지표", "미국 10년물 (미 재무부)", treasury_10y),
+    ("미국 주식", "엔비디아 (야후, 쿠키 방식)", lambda: yahoo_crumb("NVDA")),
+    ("지표", "하이일드 (FRED, 60초 대기)", lambda: fred_slow("BAMLH0A0HYM2")),
+    ("지표", "하이일드 (FRED 텍스트)", lambda: fred_txt("BAMLH0A0HYM2")),
+    ("지표", "Margin Debt (FINRA 엑셀 직접)", finra_direct),
 ]
 
 

@@ -148,7 +148,7 @@ private fun MarketScoreCard(data: MarketData) {
         }
         ZoneBar(ms.score)
         if (!ms.comment.isNullOrBlank()) AiBox(ms.comment)
-        ms.items.forEach { ScoreRow(it) }
+        ms.items.forEach { ScoreRow(it, SCORE_GUIDE[it.key]) }
         Text("일부 항목은 하루 1번(추세·하이일드·금리차), 한 달 1번(Margin Debt) 바뀌어요. 빈 항목은 빼고 100점 만점으로 환산해요.",
             color = Palette.Sub, fontSize = 11.sp)
     }
@@ -183,13 +183,19 @@ private fun AiBox(text: String) {
 }
 
 @Composable
-private fun ScoreRow(item: ScoreItem) {
-    Column(Modifier.padding(vertical = 4.dp)) {
+private fun ScoreRow(item: ScoreItem, guide: IndGuide? = null) {
+    Column(Modifier.padding(vertical = 5.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(item.name, color = Palette.Fg, fontSize = 13.sp, modifier = Modifier.weight(1f, fill = false))
+            Text(item.name, color = Palette.Fg, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f, fill = false))
             Text("  가중치 ${item.weight}", color = Palette.Faint, fontSize = 11.sp, maxLines = 1)
         }
-        Text(item.value ?: "-", color = Palette.Sub, fontSize = 11.sp, modifier = Modifier.padding(bottom = 2.dp))
+        if (guide != null) {
+            Text("${guide.what} · ${guide.meaning}", color = Palette.Sub, fontSize = 11.sp)
+            Text("기준 ${guide.levels}", color = Color(0xFF6F9BD1), fontSize = 11.sp)
+        }
+        Text("지금 ${item.value ?: "-"}", color = Palette.Fg.copy(alpha = 0.85f), fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 2.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF262626))) {
                 if (item.score != null) {
@@ -261,7 +267,7 @@ private fun StockCard(s: Stock, settings: AppSettings) {
         }
         if (open) {
             if (!s.comment.isNullOrBlank()) AiBox(s.comment)
-            if (settings.showStockScore) s.scoreItems.forEach { ScoreRow(it) }
+            if (settings.showStockScore) s.scoreItems.forEach { ScoreRow(it, STOCK_GUIDE[it.key]) }
             if (s.news.isNotEmpty()) {
                 Text("근거 뉴스", color = Palette.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
                 s.news.forEach { n ->

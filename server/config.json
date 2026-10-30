@@ -96,5 +96,12 @@
     "코스피 마감",
     "뉴욕증시"
   ],
-  "publish_url": "https://97yujh-droid.github.io/stock-widget/latest.json"
+  "publish_url": "https://97yujh-droid.github.io/stock-widget/latest.json",
+  "econ_news_queries": [
+    "미국 CPI 발표",
+    "미국 PPI 발표",
+    "미국 고용보고서",
+    "FOMC 금리 결정",
+    "미국 경제지표 발표"
+  ]
 }

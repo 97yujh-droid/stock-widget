@@ -282,12 +282,42 @@ def ac_raw(target, ua, accept):
 
 APP_UA = "Dalvik/2.1.0 (Linux; U; Android 14; SM-S928N Build/UP1A)"
 GH = "application/vnd.github+json"
+# ---------- 6차 시험: 추가 지표 + 경제 일정 ----------
+def cnbc_each(syms):
+    url = ("https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol"
+           f"?symbols={quote('|'.join(syms))}&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json")
+    q = get(url).json()["FormattedQuoteResult"]["FormattedQuote"]
+    return " / ".join(f"{x.get('symbol')}={x.get('last')} ({x.get('change_pct')}) {x.get('name','')[:20]} @{str(x.get('last_time',''))[:16]}" for x in q)
+
+
+def ff_calendar():
+    j = get("https://nfs.faireconomy.media/ff_calendar_thisweek.json").json()
+    us = [e for e in j if e.get("country") in ("USD", "KRW") and e.get("impact") in ("High", "Medium")]
+    return f"{len(j)}건 중 미국·한국 주요 {len(us)}건. 예: " + short(json.dumps(us[:3], ensure_ascii=False), 400)
+
+
+def naver_kospi_investors():
+    out = []
+    for u in ("https://m.stock.naver.com/api/index/KOSPI/integration",
+              "https://m.stock.naver.com/api/index/KOSPI/trend"):
+        try:
+            j = get(u).json()
+            keys = list(j.keys())[:15] if isinstance(j, dict) else f"list{len(j)}"
+            out.append(f"{u.rsplit('/',1)[-1]}: 키 {keys} / {short(json.dumps(j, ensure_ascii=False), 300)}")
+        except Exception as e:
+            out.append(f"{u.rsplit('/',1)[-1]}: {type(e).__name__} {str(e)[:80]}")
+    return " || ".join(out)
+
+
 TESTS = [
-    ("검색", "target=stock, 브라우저", lambda: ac_raw("stock", UA, "*/*")),
-    ("검색", "target=stock,index, 브라우저", lambda: ac_raw("stock,index", UA, "*/*")),
-    ("검색", "target=stock, 앱 방식", lambda: ac_raw("stock", APP_UA, GH)),
-    ("검색", "target=stock,index, 앱 방식", lambda: ac_raw("stock,index", APP_UA, GH)),
-    ("검색", "target=stock,index, 앱UA+*/*", lambda: ac_raw("stock,index", APP_UA, "*/*")),
+    ("모니터링", "CNBC 1차 (WTI·나스닥선물·SOX·엔·2년·금·MOVE)",
+     lambda: cnbc_each(["@CL.1", "@ND.1", ".SOX", "JPY=", "US2Y", "@GC.1", ".MOVE"])),
+    ("모니터링", "CNBC 2차 (다른 기호 후보)",
+     lambda: cnbc_each(["CL.1", "NQ.1", "SOX", "USDJPY", "GC.1", "MOVE", ".MOVE.IDX"])),
+    ("모니터링", "기대 인플레이션 (FRED T10YIE)", lambda: fred_api("T10YIE")),
+    ("모니터링", "외국인 순매수 (네이버)", naver_kospi_investors),
+    ("경제지표", "경제 일정표 (ForexFactory)", ff_calendar),
+    ("경제지표", "지표 뉴스 (구글)", lambda: gnews("미국 CPI")),
 ]
 
 

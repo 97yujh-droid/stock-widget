@@ -15,8 +15,12 @@ VERSION = 1
 # 지표별 갱신 주기(화면 표시용)
 CYCLE = {
     "usdkrw": "30분", "dxy": "30분", "us10y": "30분", "vix": "美장중",
-    "hy_spread": "매일 23시", "fear_greed": "美장중", "margin_debt": "월 1회",
+    "hy_spread": "매일 23시", "fear_greed": "美장중", "margin_debt": "월 1회", "move": "美장중",
+    # 모니터링
+    "wti": "30분", "nq_fut": "30분", "sox": "美장중", "usdjpy": "30분", "us2y": "30분", "gold": "30분",
+    "bei10": "매일", "kospi_foreign": "국내 장중", "bitcoin": "30분", "ethereum": "30분",
 }
+DATE_ONLY = {"hy_spread", "bei10", "kospi_foreign"}
 
 
 def load_previous(config):
@@ -111,15 +115,18 @@ def build(config, data, issues, market_lines, mscore, mcomment, sscores, scommen
         })
 
     indicators = []
-    for key, v in data["indicators"].items():
-        date_only = key == "hy_spread"
-        indicators.append({
-            "key": key, "name": v.get("name"), "value": v.get("price"), "label": v.get("label"),
-            "change": v.get("change"), "change_pct": v.get("change_pct"),
-            "as_of": v.get("as_of"), "published": v.get("published"), "source": v.get("source"),
-            "cycle": CYCLE.get(key), "stale": bool(v.get("need_input")) or key == "margin_debt" or is_stale(v.get("as_of"), now, date_only),
-            "need_input": bool(v.get("need_input")), "error": None if v.get("price") is not None else v.get("error"),
-        })
+    groups = [("score", data["indicators"]), ("monitor", data.get("monitors", {}))]
+    for group, src in groups:
+        for key, v in src.items():
+            date_only = key in DATE_ONLY
+            indicators.append({
+                "key": key, "group": group, "name": v.get("name"), "value": v.get("price"), "label": v.get("label"),
+                "unit": v.get("unit"),
+                "change": v.get("change"), "change_pct": v.get("change_pct"),
+                "as_of": v.get("as_of"), "published": v.get("published"), "source": v.get("source"),
+                "cycle": CYCLE.get(key), "stale": bool(v.get("need_input")) or key == "margin_debt" or is_stale(v.get("as_of"), now, date_only),
+                "need_input": bool(v.get("need_input")), "error": None if v.get("price") is not None else v.get("error"),
+            })
 
     return {
         "version": VERSION,
@@ -135,6 +142,7 @@ def build(config, data, issues, market_lines, mscore, mcomment, sscores, scommen
                         "as_of": v.get("as_of")} for k, v in data.get("markets", {}).items()},
         "stocks": stocks,
         "indicators": indicators,
+        "calendar": data.get("calendar", []),
         "meta": meta,
     }
 

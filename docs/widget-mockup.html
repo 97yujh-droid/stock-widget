@@ -81,7 +81,18 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .sc-top>b{font-size:2.6em;line-height:1;font-variant-numeric:tabular-nums}
 .sc-top .sz{font-size:1.15em;font-weight:700}
 .sc-top small{display:block;color:var(--sub);font-size:.8em;margin-top:.15em}
-.why{background:#1b1b1b;border-radius:8px;padding:.55em .7em;margin:.8em 0 .3em!important;font-size:.88em!important}
+.aiwhy{background:#1b1b1b;border-radius:8px;padding:.55em .7em;margin:.8em 0 .3em!important;font-size:.88em!important}
+.smeta{white-space:nowrap}
+.smeta .chip{margin-left:0;font-size:1em;font-weight:700}
+.chip{font-size:.75em;font-weight:500;margin-left:.35em;white-space:nowrap}
+.set-row{flex-wrap:wrap}
+.hin{margin-left:auto;font-size:.8em;color:var(--sub);white-space:nowrap}
+.hin i{font-style:normal;display:inline-block;min-width:4.6em;border:1px solid #333;border-radius:6px;padding:1px 6px;color:var(--fg);margin:0 .3em;text-align:right}
+.set-row .hin+.x{margin-left:.4em}
+.hold{font-size:.84em;color:#c3c9cf;margin-top:.35em}
+details.sd2{margin-top:.45em}
+details.sd2 summary{cursor:pointer;font-size:.86em;color:var(--sub);list-style:none}
+details.sd2 summary::-webkit-details-marker{display:none}
 .fx{display:grid;grid-template-columns:1fr auto;gap:.25em .6em;padding:.55em 0;border-bottom:1px solid #222}
 .fx:last-of-type{border:0}
 .fx b{font-size:.9em;font-weight:500}
@@ -140,7 +151,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 </style>
 
 <div class="wrap">
-  <h1>주식 위젯 시안 <span class="tag">숫자는 예시</span></h1>
+  <h1>마켓 날씨 시안 <span class="tag">숫자는 예시</span></h1>
   <p class="lead">나무 스타일로 정리했어요. 지표마다 <b>언제 기준 숫자인지</b>와 <b>얼마나 자주 바뀌는지</b>를 적었어요. 위젯을 누르면 앱 화면이 열려요.</p>
 
   <div class="tabs" role="tablist">
@@ -241,14 +252,39 @@ function scoreCard(){const z=zone(TOTAL),d=TOTAL-PREV;
    <div class="sc-top"><b style="color:${z[3]}">${TOTAL}</b><div><div class="sz">${z[1]} ${z[2]}</div><small>어제 ${PREV} → 오늘 ${TOTAL} (<span class="${cls(d)}">${arr(d)}${Math.abs(d)}</span>)</small></div></div>
    <div class="sbar"><i style="left:${TOTAL}%"></i></div>
    <div class="zones"><span>⛈ 폭풍</span><span>🌧 비</span><span>☁️ 흐림</span><span>🌤 구름조금</span><span>☀️ 맑음</span></div>
-   <p class="why">🤖 VIX와 신용 위험은 안정적이고 상승 추세도 이어지고 있어요. 다만 달러와 환율이 오르고 금리가 높아 감점됐어요.</p>
+   <p class="aiwhy">🤖 VIX와 신용 위험은 안정적이고 상승 추세도 이어지고 있어요. 다만 달러와 환율이 오르고 금리가 높아 감점됐어요.</p>
    ${F.map(f=>{const c=zone(f[3])[3];return `<div class="fx"><b>${f[0]}<small>가중치 ${f[1]}</small></b><span class="raw">${f[2]}</span>
      <div class="bar2"><span><i style="width:${f[3]}%;background:${c}"></i></span><em>${f[3]}점 → +${(f[1]*f[3]/100).toFixed(1)}</em></div></div>`}).join("")}
    <div class="hint">10/29 08:30 계산 · 30분마다 다시 계산. 추세·하이일드·금리차는 하루 1번, Margin Debt는 한 달 1번 바뀌어요. 빈 항목은 빼고 나머지로 100점 만점 환산. 참고용이에요.</div></div>`}
-const head=`<div class="w-head"><span class="logo">∩ 내 주식</span><span class="time num">08:30:00 ↻</span><span class="w-ico">⚙</span></div>${scoreBand()}`;
+// 종목 점수: 항목별 점수 + (선택) 평단·수량
+const FN=["추세","상대 강도","뉴스 분위기","위험도","가격 수준"],FW=[30,20,20,15,15];
+const SC={
+ "삼성전자":{f:[80,70,85,60,55],avg:198000,qty:10,ai:"세 평균선 위에서 상승 추세이고 HBM 납품 뉴스가 호재예요. 다만 1년 최고가 근처라 가격 부담이 조금 있어요."},
+ "SK하이닉스":{f:[90,85,70,45,40],avg:1210000,qty:2,ai:"시장보다 훨씬 강하게 올랐어요. 단기간 급등해서 출렁임과 가격 부담이 커요."},
+ "NAVER":{f:[35,30,40,55,70],ai:"200일 평균 아래로 내려와 추세가 약해요. 대신 과거보다 싸게 거래 중이에요."},
+ "현대차":{f:[55,45,50,60,75],avg:305000,qty:5,ai:"추세는 보통이고, 로봇 사업 기대가 줄어든 뉴스가 부담이에요. 가격은 싼 편이에요."},
+ "엔비디아":{f:[75,60,55,50,35],avg:150.2,qty:15,ai:"상승 추세는 유지 중이지만 최근 반도체주 약세로 힘이 빠졌어요."},
+ "TSMC":{f:[70,65,40,55,45],ai:"추세는 괜찮지만 대만 규제 뉴스가 악재로 작용했어요."},
+ "테슬라":{f:[45,35,40,35,25],avg:420,qty:3,ai:"평균선 아래로 내려왔고 인도량 부진 뉴스가 겹쳤어요. 가격도 비싼 편이에요."},
+ "애플":{f:[65,50,75,70,40],ai:"신제품 판매 호조 뉴스가 좋고, 출렁임이 작은 편이에요."}
+};
+function sscore(n){const x=SC[n];return x?Math.round(x.f.reduce((a,v,i)=>a+v*FW[i]/100,0)):null}
+function chip(n){const v=sscore(n);if(v==null)return "";const z=zone(v);return `<span class="chip" style="color:${z[3]}">${v}${z[1]}</span>`}
+function holdCalc(s){const x=SC[s[0]];if(!x||!x.qty)return null;const p=parseFloat(s[2].replace(/,/g,""));
+  return {r:(p/x.avg-1)*100,amt:(p-x.avg)*x.qty,us:/^[A-Z]/.test(s[1]),x}}
+const signPct=r=>(r>0?"+":"")+r.toFixed(1)+"%";
+function metaTxt(s){const v=chip(s[0]),h=holdCalc(s);if(!v&&!h)return "";
+  return `<span class="smeta">${v}${h?` · 내 수익 <span class="${cls(h.r)}">${signPct(h.r)}</span>`:""}</span> · `}
+function holdTxt(s){const h=holdCalc(s);return h?` · 내 수익 <span class="${cls(h.r)}">${signPct(h.r)}</span>`:""}
+function money(v,us){return us?"$"+Math.abs(v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}):Math.round(Math.abs(v)).toLocaleString("ko-KR")+"원"}
+function stockDetail(s){const x=SC[s[0]];if(!x)return "";const v=sscore(s[0]),z=zone(v),h=holdCalc(s);
+  const hold=h?`<div class="hold">보유 ${x.qty}주 · 평단 ${h.us?"$"+x.avg.toFixed(2):x.avg.toLocaleString("ko-KR")+"원"} · 내 수익 <span class="${cls(h.r)}">${signPct(h.r)} (${h.amt>=0?"+":"-"}${money(h.amt,h.us)})</span></div>`:"";
+  return `${hold}<details class="sd2"${s[0]==="삼성전자"?" open":""}><summary>종목 점수 <b style="color:${z[3]}">${v}</b> ${z[1]} ${z[2]} · 항목별 보기 ▾</summary>
+   <p class="aiwhy">🤖 ${x.ai}</p>${x.f.map((f,i)=>`<div class="fx"><b>${FN[i]}<small>가중치 ${FW[i]}</small></b><span class="raw">${f}점</span><div class="bar2"><span><i style="width:${f}%;background:${zone(f)[3]}"></i></span><em>+${(FW[i]*f/100).toFixed(1)}</em></div></div>`).join("")}</details>`}
+const head=`<div class="w-head"><span class="logo">마켓 날씨</span><span class="time num">08:30:00 ↻</span><span class="w-ico">⚙</span></div>${scoreBand()}`;
 
 function stockRow(s){const c=cls(s[4]);return `<div class="row"><div class="nm"><b>${s[0]}</b><small>${s[1]}</small></div>
- <span class="v num ${c}">${s[2]}${/^[A-Z]/.test(s[1])&&s[4]?`<span class="ar">${arr(s[4])}</span>`:""}</span><span class="d num ${c}">${s[3]}</span><span class="p num ${c}">${pct(s[4])}</span><span class="why">${s[5]}</span></div>`}
+ <span class="v num ${c}">${s[2]}${/^[A-Z]/.test(s[1])&&s[4]?`<span class="ar">${arr(s[4])}</span>`:""}</span><span class="d num ${c}">${s[3]}</span><span class="p num ${c}">${pct(s[4])}</span><span class="why">${metaTxt(s)}${s[5]}</span></div>`}
 function indRow(i){const h=indRow0(i);return i.stale?h.replace('class="row"','class="row stale"'):h}
 function indRow0(i){
   const sub=`<small>${i.b} 기준 · <span class="cy">${i.c}</span></small>`;
@@ -282,11 +318,11 @@ function render(){
     sc.querySelectorAll(".widget").forEach(w=>w.onclick=()=>setView("d"));
   }else if(v==="d"){
     sc.className="app";
-    sc.innerHTML=`<div class="app-top"><b>‹ 내 주식</b><span>마지막 업데이트 10/29 08:30</span></div>
+    sc.innerHTML=`<div class="app-top"><b>‹ 마켓 날씨</b><span>마지막 업데이트 10/29 08:30</span></div>
     ${scoreCard()}
     <div class="card"><h3>오늘 시황 (AI 요약)</h3><p>코스피는 삼성전자와 SK하이닉스가 이끌며 1.2% 올랐어요. 반면 미국 기술주는 최근 많이 오른 데 따른 차익 실현으로 약세였어요. 원/달러 환율은 1,385원으로 소폭 올랐고, 시장 불안 지표인 VIX는 16대로 안정적이에요.</p>
       <div class="hint">10/29 08:00 작성 · 국내 10/28 장 + 밤사이 미국 10/28 장 기준<br>하루 5번 새로 요약: 06:00 미국 장 끝 · 08:00 국내 장 전 · 12:00 점심 · 15:40 국내 장 끝 · 21:00 미국 장 전</div></div>
-    <div class="card"><h3>관심 종목</h3>${S.map(s=>`<div class="st"><div class="l1"><b>${s[0]}<small>${s[1]}</small></b><span class="num ${cls(s[4])}">${s[2]} ${pct(s[4])}</span></div><p>${s[5]}. 관련 뉴스 2~3건 요약이 여기에 들어가요.<br>가격: ${s[6]} 기준 · 장중 30분마다 갱신<br>이슈: 10/29 08:30까지 최근 24시간 뉴스 · 30분마다 새 뉴스 확인</p></div>`).join("")}</div>
+    <div class="card"><h3>관심 종목 · 종목 점수</h3>${S.map(s=>`<div class="st"><div class="l1"><b>${s[0]}<small>${s[1]}</small>${chip(s[0])}</b><span class="num ${cls(s[4])}">${s[2]} ${pct(s[4])}</span></div><p>${s[5]}. 관련 뉴스 2~3건 요약이 여기에 들어가요.<br>가격: ${s[6]} 기준 · 장중 30분마다 갱신<br>이슈: 10/29 08:30까지 최근 24시간 뉴스 · 30분마다 새 뉴스 확인</p>${stockDetail(s)}</div>`).join("")}</div>
     <div class="card"><h3>시장 지표</h3>${I.map(i=>{
       const c=i.p===null?"":i.fg?"up":cls(i.p);
       const val=i.p===null?`${i.v} (${i.d})`:i.fg?`${i.v} ${i.d}`:`${i.v} ${arr(i.p)}${i.d}`;
@@ -296,8 +332,9 @@ function render(){
   }else{
     sc.className="app";
     sc.innerHTML=`<div class="app-top"><b>‹ 설정</b></div>
-    <div class="card"><h3>관심 종목 (끌어서 순서 바꾸기)</h3>
-      ${S.map(s=>`<div class="set-row"><span class="h">☰</span>${s[0]}<span class="x">삭제</span></div>`).join("")}
+    <div class="card"><h3>관심·보유 종목 (끌어서 순서 바꾸기)</h3>
+      <p class="hint">평단과 수량은 선택이에요. 이 휴대폰에만 저장되고 서버로 보내지 않아요.</p>
+      ${S.map(s=>{const x=SC[s[0]]||{},us=/^[A-Z]/.test(s[1]);return `<div class="set-row"><span class="h">☰</span>${s[0]}<span class="hin">평단<i>${x.avg?(us?"$"+x.avg.toFixed(2):x.avg.toLocaleString("ko-KR")):"-"}</i>수량<i>${x.qty||"-"}</i></span><span class="x">삭제</span></div>`}).join("")}
       <div class="add"><input id="addq" placeholder="종목 이름이나 코드 입력" aria-label="종목 추가"><button type="button">추가</button></div></div>
     <div class="card"><h3>위젯 모양</h3>
       <div class="opt">페이지 구성<span>한 장 / 두 장</span></div>
@@ -305,6 +342,7 @@ function render(){
       <div class="opt">종목 칸 : 지표 칸<span>55 : 45</span></div>
       <div class="opt">시황 요약 보이기<span>켬</span></div>
       <div class="opt">시장 점수 보이기<span>켬</span></div>
+      <div class="opt">종목 점수·내 수익률 보이기<span>켬</span></div>
       <div class="opt">상승 색<span>빨강 (한국식)</span></div>
       <div class="opt">새 데이터 받기<span>30분마다</span></div>
       <div class="opt">시황 요약 시각<span>06:00 · 08:00 · 12:00 · 15:40 · 21:00</span></div></div>`;
@@ -317,7 +355,7 @@ function render(){
   if(st.pages===2) $("sp").disabled=true;
 }
 $("cyc").innerHTML=I.map(i=>`<tr><td>${i.n}</td><td>${{"30분":"평일 계속","美장중":"미국 장중만","월 1회":"한 달에 1번","매일 23시":"매일 밤 11시쯤"}[i.c]}</td><td>${i.A}</td></tr>`).join("")
- +`<tr><td>국내 주식</td><td>09:00~15:30</td><td>장중 30분마다</td></tr><tr><td>미국 주식</td><td>밤 10:30~새벽 5:00</td><td>장중 30분마다</td></tr><tr><td>AI 시황 요약</td><td>직전 국내·미국 장</td><td>06·08·12·15:40·21시</td></tr><tr><td>종목 이슈</td><td>최근 24시간 뉴스</td><td>30분마다</td></tr><tr><td>시장 점수</td><td>위 지표로 계산</td><td>30분마다</td></tr>`;
+ +`<tr><td>국내 주식</td><td>09:00~15:30</td><td>장중 30분마다</td></tr><tr><td>미국 주식</td><td>밤 10:30~새벽 5:00</td><td>장중 30분마다</td></tr><tr><td>AI 시황 요약</td><td>직전 국내·미국 장</td><td>06·08·12·15:40·21시</td></tr><tr><td>종목 이슈</td><td>최근 24시간 뉴스</td><td>30분마다</td></tr><tr><td>시장 점수</td><td>위 지표로 계산</td><td>30분마다</td></tr><tr><td>종목 점수</td><td>주가·뉴스로 계산</td><td>30분마다</td></tr><tr><td>내 수익률</td><td>현재가 ÷ 평단</td><td>휴대폰에서 계산</td></tr>`;
 function setView(v){st.view=v;document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.v===v));render()}
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>setView(b.dataset.v));
 document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>{st.pages=+b.dataset.p;document.querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed",x===b));render()});

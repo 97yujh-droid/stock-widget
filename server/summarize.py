@@ -138,7 +138,12 @@ def wrong_direction(s, x):
     c = (s.get("quote") or {}).get("change_pct")
     if c is None or not x:
         return False
-    return (c >= 1 and x.get("explains") == "DOWN") or (c <= -1 and x.get("explains") == "UP")
+    e, senti = x.get("explains"), x.get("sentiment", 0)
+    if c >= 1:
+        return e == "DOWN" or senti < 0 or (c >= 2 and e != "UP")
+    if c <= -1:
+        return e == "UP" or senti > 0 and e != "DOWN" or (c <= -2 and e != "DOWN")
+    return False
 
 
 def summarize_issues(config, data):

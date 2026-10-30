@@ -69,6 +69,28 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .d,.p{text-align:right;font-size:1.02em}
 .mute{color:#9aa0a8}
 .foot{font-size:.7em;color:var(--faint);text-align:right;padding-top:.4em;flex:none}
+.score{display:grid;grid-template-columns:auto auto 1fr auto;align-items:baseline;column-gap:.5em;margin-top:.7em;padding:.55em .75em .6em;background:#121212;border-radius:.7em;flex:none}
+.score .sl{font-size:.85em;color:#9aa0a8}
+.score .sv{font-size:1.6em;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.score .sz{font-size:1em;font-weight:500;white-space:nowrap}
+.score .sd{font-size:.82em;white-space:nowrap}
+.sbar{grid-column:1/-1;position:relative;height:.35em;border-radius:.2em;margin-top:.5em;background:linear-gradient(90deg,#a46cf0 0 20%,#e0883c 20% 40%,#c2b25a 40% 60%,#9bd36a 60% 80%,#39c27a 80%)}
+.sbar i{position:absolute;top:-.25em;width:.25em;height:.85em;background:#fff;border-radius:.1em;transform:translateX(-50%)}
+.zones{display:grid;grid-template-columns:repeat(5,1fr);font-size:.72em;color:var(--sub);text-align:center;margin-top:.35em}
+.sc-top{display:flex;align-items:center;gap:.7em}
+.sc-top>b{font-size:2.6em;line-height:1;font-variant-numeric:tabular-nums}
+.sc-top .sz{font-size:1.15em;font-weight:700}
+.sc-top small{display:block;color:var(--sub);font-size:.8em;margin-top:.15em}
+.why{background:#1b1b1b;border-radius:8px;padding:.55em .7em;margin:.8em 0 .3em!important;font-size:.88em!important}
+.fx{display:grid;grid-template-columns:1fr auto;gap:.25em .6em;padding:.55em 0;border-bottom:1px solid #222}
+.fx:last-of-type{border:0}
+.fx b{font-size:.9em;font-weight:500}
+.fx b small{color:var(--faint);font-weight:400;margin-left:.3em;font-size:.85em}
+.fx .raw{font-size:.8em;color:var(--sub);text-align:right}
+.fx .bar2{grid-column:1/-1;display:flex;align-items:center;gap:.5em}
+.fx .bar2 span{flex:1;height:.42em;background:#262626;border-radius:.21em;overflow:hidden}
+.fx .bar2 span i{display:block;height:100%;border-radius:.21em}
+.fx .bar2 em{font-style:normal;font-size:.8em;color:#c3c9cf;min-width:6.2em;text-align:right;font-variant-numeric:tabular-nums}
 
 /* 앱 화면 */
 .app{flex:1;background:#0a0a0a;overflow-y:auto;padding:12px 16px 20px;display:flex;flex-direction:column;gap:14px;font-size:calc(14px * var(--fs))}
@@ -197,7 +219,33 @@ const st={view:"w",pages:1};
 const $=id=>document.getElementById(id);
 
 const SUM=`<ul class="summary"><li>코스피는 반도체 강세로 1.2% 올랐어요.</li><li>미국 기술주는 차익 실현으로 약세였어요.</li><li>환율은 1,385원으로 소폭 올랐어요.</li><li>시장 불안 지표(VIX)는 낮은 편이에요.</li></ul>`;
-const head=`<div class="w-head"><span class="logo">∩ 내 주식</span><span class="time num">08:30:00 ↻</span><span class="w-ico">⚙</span></div>`;
+// 시장 점수: [항목, 가중치, 현재 값, 점수(0~100)]
+const F=[
+ ["추세 (S&P500·코스피 200일 평균)",20,"둘 다 평균 위",80],
+ ["VIX",15,"16.80",70],
+ ["하이일드 스프레드",15,"3.12%p",72],
+ ["미국 10년물 금리",10,"4.21%, 1달 +0.15%p",55],
+ ["공포탐욕지수",10,"62 탐욕",95],
+ ["달러지수 1달 변화",10,"+0.8%",45],
+ ["원/달러 1달 변화",10,"+1.2% (원화 약세)",40],
+ ["장단기 금리차",5,"+0.45%p",70],
+ ["Margin Debt 전년비",5,"+18.4%",55]
+];
+const ZONES=[[80,"☀️","맑음","#39c27a"],[60,"🌤","구름 조금","#9bd36a"],[40,"☁️","흐림","#c2b25a"],[20,"🌧","비","#e0883c"],[0,"⛈","폭풍","#a46cf0"]];
+const zone=s=>ZONES.find(z=>s>=z[0]);
+const TOTAL=Math.round(F.reduce((a,f)=>a+f[1]*f[3]/100,0)), PREV=64;
+function scoreBand(){const z=zone(TOTAL),d=TOTAL-PREV;
+  return `<div class="score"><span class="sl">시장 점수</span><b class="sv" style="color:${z[3]}">${TOTAL}</b><span class="sz">${z[1]} ${z[2]}</span><span class="sd ${cls(d)}">어제보다 ${arr(d)}${Math.abs(d)}</span><div class="sbar"><i style="left:${TOTAL}%"></i></div></div>`}
+function scoreCard(){const z=zone(TOTAL),d=TOTAL-PREV;
+  return `<div class="card"><h3>시장 점수</h3>
+   <div class="sc-top"><b style="color:${z[3]}">${TOTAL}</b><div><div class="sz">${z[1]} ${z[2]}</div><small>어제 ${PREV} → 오늘 ${TOTAL} (<span class="${cls(d)}">${arr(d)}${Math.abs(d)}</span>)</small></div></div>
+   <div class="sbar"><i style="left:${TOTAL}%"></i></div>
+   <div class="zones"><span>⛈ 폭풍</span><span>🌧 비</span><span>☁️ 흐림</span><span>🌤 구름조금</span><span>☀️ 맑음</span></div>
+   <p class="why">🤖 VIX와 신용 위험은 안정적이고 상승 추세도 이어지고 있어요. 다만 달러와 환율이 오르고 금리가 높아 감점됐어요.</p>
+   ${F.map(f=>{const c=zone(f[3])[3];return `<div class="fx"><b>${f[0]}<small>가중치 ${f[1]}</small></b><span class="raw">${f[2]}</span>
+     <div class="bar2"><span><i style="width:${f[3]}%;background:${c}"></i></span><em>${f[3]}점 → +${(f[1]*f[3]/100).toFixed(1)}</em></div></div>`}).join("")}
+   <div class="hint">10/29 08:30 계산 · 30분마다 다시 계산. 추세·하이일드·금리차는 하루 1번, Margin Debt는 한 달 1번 바뀌어요. 빈 항목은 빼고 나머지로 100점 만점 환산. 참고용이에요.</div></div>`}
+const head=`<div class="w-head"><span class="logo">∩ 내 주식</span><span class="time num">08:30:00 ↻</span><span class="w-ico">⚙</span></div>${scoreBand()}`;
 
 function stockRow(s){const c=cls(s[4]);return `<div class="row"><div class="nm"><b>${s[0]}</b><small>${s[1]}</small></div>
  <span class="v num ${c}">${s[2]}${/^[A-Z]/.test(s[1])&&s[4]?`<span class="ar">${arr(s[4])}</span>`:""}</span><span class="d num ${c}">${s[3]}</span><span class="p num ${c}">${pct(s[4])}</span><span class="why">${s[5]}</span></div>`}
@@ -235,6 +283,7 @@ function render(){
   }else if(v==="d"){
     sc.className="app";
     sc.innerHTML=`<div class="app-top"><b>‹ 내 주식</b><span>마지막 업데이트 10/29 08:30</span></div>
+    ${scoreCard()}
     <div class="card"><h3>오늘 시황 (AI 요약)</h3><p>코스피는 삼성전자와 SK하이닉스가 이끌며 1.2% 올랐어요. 반면 미국 기술주는 최근 많이 오른 데 따른 차익 실현으로 약세였어요. 원/달러 환율은 1,385원으로 소폭 올랐고, 시장 불안 지표인 VIX는 16대로 안정적이에요.</p>
       <div class="hint">10/29 08:00 작성 · 국내 10/28 장 + 밤사이 미국 10/28 장 기준<br>하루 5번 새로 요약: 06:00 미국 장 끝 · 08:00 국내 장 전 · 12:00 점심 · 15:40 국내 장 끝 · 21:00 미국 장 전</div></div>
     <div class="card"><h3>관심 종목</h3>${S.map(s=>`<div class="st"><div class="l1"><b>${s[0]}<small>${s[1]}</small></b><span class="num ${cls(s[4])}">${s[2]} ${pct(s[4])}</span></div><p>${s[5]}. 관련 뉴스 2~3건 요약이 여기에 들어가요.<br>가격: ${s[6]} 기준 · 장중 30분마다 갱신<br>이슈: 10/29 08:30까지 최근 24시간 뉴스 · 30분마다 새 뉴스 확인</p></div>`).join("")}</div>
@@ -255,6 +304,7 @@ function render(){
       <div class="opt">글씨 크기<span>80% ~ 140%</span></div>
       <div class="opt">종목 칸 : 지표 칸<span>55 : 45</span></div>
       <div class="opt">시황 요약 보이기<span>켬</span></div>
+      <div class="opt">시장 점수 보이기<span>켬</span></div>
       <div class="opt">상승 색<span>빨강 (한국식)</span></div>
       <div class="opt">새 데이터 받기<span>30분마다</span></div>
       <div class="opt">시황 요약 시각<span>06:00 · 08:00 · 12:00 · 15:40 · 21:00</span></div></div>`;
@@ -267,7 +317,7 @@ function render(){
   if(st.pages===2) $("sp").disabled=true;
 }
 $("cyc").innerHTML=I.map(i=>`<tr><td>${i.n}</td><td>${{"30분":"평일 계속","美장중":"미국 장중만","월 1회":"한 달에 1번","매일 23시":"매일 밤 11시쯤"}[i.c]}</td><td>${i.A}</td></tr>`).join("")
- +`<tr><td>국내 주식</td><td>09:00~15:30</td><td>장중 30분마다</td></tr><tr><td>미국 주식</td><td>밤 10:30~새벽 5:00</td><td>장중 30분마다</td></tr><tr><td>AI 시황 요약</td><td>직전 국내·미국 장</td><td>06·08·12·15:40·21시</td></tr><tr><td>종목 이슈</td><td>최근 24시간 뉴스</td><td>30분마다</td></tr>`;
+ +`<tr><td>국내 주식</td><td>09:00~15:30</td><td>장중 30분마다</td></tr><tr><td>미국 주식</td><td>밤 10:30~새벽 5:00</td><td>장중 30분마다</td></tr><tr><td>AI 시황 요약</td><td>직전 국내·미국 장</td><td>06·08·12·15:40·21시</td></tr><tr><td>종목 이슈</td><td>최근 24시간 뉴스</td><td>30분마다</td></tr><tr><td>시장 점수</td><td>위 지표로 계산</td><td>30분마다</td></tr>`;
 function setView(v){st.view=v;document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.v===v));render()}
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>setView(b.dataset.v));
 document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>{st.pages=+b.dataset.p;document.querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed",x===b));render()});

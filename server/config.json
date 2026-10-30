@@ -89,5 +89,6 @@
   "market_news_queries": [
     "코스피 마감",
     "뉴욕증시"
-  ]
+  ],
+  "publish_url": "https://97yujh-droid.github.io/stock-widget/latest.json"
 }

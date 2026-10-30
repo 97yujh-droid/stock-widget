@@ -1,18 +1,34 @@
 name: server
 
-# 3단계 서버. 지금은 수집 시험용(서버 파일이 바뀌면 실행, 직접 실행 가능).
-# 30분마다 자동 실행은 3-4단계에서 켠다.
+# 30분마다 데이터 수집 → AI 요약 → 점수 → 결과 파일을 GitHub Pages 에 올린다.
+# 앱은 https://97yujh-droid.github.io/stock-widget/latest.json 만 읽는다.
+# (매시 10분·40분: 정각 혼잡을 피하고, 15:40 시황 시각에 맞춤)
 on:
+  schedule:
+    - cron: "10,40 * * * *"
   push:
+    branches: [main]
     paths:
       - "server/**"
       - ".github/workflows/server.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: server
+  cancel-in-progress: false
+
 jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -24,8 +40,11 @@ jobs:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           FORCE_SUMMARY: ${{ github.event_name != 'schedule' }}
-      - uses: actions/upload-artifact@v4
-        if: always()
+      - name: 시안 그림도 함께 올리기
+        run: cp docs/widget-mockup.html public/mockup.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
         with:
-          name: latest-json
-          path: public/latest.json
+          path: public
+      - id: deploy
+        uses: actions/deploy-pages@v4

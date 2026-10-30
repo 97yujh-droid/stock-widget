@@ -19,7 +19,10 @@ data class AppSettings(
     val holdings: Map<String, Holding> = emptyMap(),
     val githubToken: String = "",            // 관심 종목 추가·삭제용 (휴대폰에만 저장)
     val removed: Set<String> = emptySet(),   // 삭제했지만 아직 서버 결과에 남아 있는 종목
+    val widgetMonitors: Set<String> = DEFAULT_WIDGET_MONITORS,  // 위젯에 보일 모니터링 지표
 )
+
+val DEFAULT_WIDGET_MONITORS = setOf("wti", "nq_fut", "sox", "kospi_foreign")
 
 object SettingsStore {
     private const val PREFS = "settings"
@@ -50,6 +53,8 @@ object SettingsStore {
             holdings = holdings,
             githubToken = p.getString("githubToken", "") ?: "",
             removed = (p.getString("removed", "") ?: "").split(",").filter { it.isNotBlank() }.toSet(),
+            widgetMonitors = p.getString("widgetMonitors", null)
+                ?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: DEFAULT_WIDGET_MONITORS,
         )
     }
 
@@ -76,6 +81,7 @@ object SettingsStore {
             .putString("holdings", h.toString())
             .putString("githubToken", s.githubToken)
             .putString("removed", s.removed.joinToString(","))
+            .putString("widgetMonitors", s.widgetMonitors.joinToString(","))
             .apply()
     }
 }

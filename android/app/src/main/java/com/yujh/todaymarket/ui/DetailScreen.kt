@@ -65,8 +65,15 @@ fun DetailScreen(
         if (settings.showSummary) item { SummaryCard(data) }
         item { SectionTitle(if (settings.showStockScore) "관심 종목 · 종목 점수" else "관심 종목") }
         items(settings.arrange(data.stocks), key = { it.code }) { StockCard(it, settings) }
-        item { SectionTitle("시장 지표") }
-        items(data.indicators, key = { it.key }) { IndicatorCard(it) }
+        val scoreInds = data.indicators.filter { it.group == "score" }
+        val monInds = data.indicators.filter { it.group == "monitor" }
+        item { SectionTitle("점수 지표 (시장 점수에 반영)") }
+        items(scoreInds, key = { "s_" + it.key }) { IndicatorCard(it) }
+        if (monInds.isNotEmpty()) {
+            item { SectionTitle("모니터링 지표 (점수에는 반영 안 함)") }
+            items(monInds, key = { "m_" + it.key }) { IndicatorCard(it) }
+        }
+        if (data.calendar.isNotEmpty()) item { CalendarCard(data) }
         item {
             Text(
                 "점수와 요약은 참고용이에요. 투자 결정은 직접 하셔야 해요.",
@@ -206,7 +213,7 @@ private fun SummaryCard(data: MarketData) {
         Text("오늘 시황 (AI 요약)", color = Palette.Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         if (data.summary.lines.isEmpty()) Text("아직 요약이 없어요.", color = Palette.Sub, fontSize = 13.sp)
         data.summary.lines.forEach { Text("• $it", color = Palette.Fg, fontSize = 14.sp) }
-        Text("${fmtTime(data.summary.generatedAt)} 작성 · 하루 5번 새로 요약 (06·08·12·15:40·21시)",
+        Text("${fmtTime(data.summary.generatedAt)} 작성 · 하루 5번 새로 요약 (06·08·12·15:40·21시) · 경제 지표 발표 포함",
             color = Palette.Sub, fontSize = 11.sp)
     }
 }
@@ -267,48 +274,60 @@ private fun StockCard(s: Stock, settings: AppSettings) {
 
 // ---------------- 지표 ----------------
 
-private data class IndInfo(val desc: String, val changes: String, val app: String)
-
-private val INFO = mapOf(
-    "usdkrw" to IndInfo("오르면 원화 가치가 떨어진 것", "평일 거의 하루 종일 거래돼서 계속 바뀌어요", "30분마다"),
-    "dxy" to IndInfo("세계 주요 통화와 비교한 달러의 힘", "평일 24시간 거래돼서 계속 바뀌어요", "30분마다"),
-    "us10y" to IndInfo("오르면 주식에 부담이 되는 경우가 많음", "평일 채권 시장이 열려 있는 동안 바뀌어요", "30분마다"),
-    "vix" to IndInfo("시장의 불안 정도. 20 아래면 안정, 30 위면 불안", "미국 장중에만 바뀌어요. 낮에는 전날 마감 숫자예요", "미국 장중 30분마다"),
-    "hy_spread" to IndInfo("오르면 기업 부도 걱정이 커진 것", "하루 1번, 한국 밤 11시쯤 전날 숫자가 올라와요", "매일 밤 첫 수집 때"),
-    "fear_greed" to IndInfo("0 극도의 공포 ~ 100 극도의 탐욕", "미국 장중에 수시로 바뀌어요", "미국 장중 30분마다"),
-    "margin_debt" to IndInfo("빚내서 투자한 돈이 1년 전보다 얼마나 늘었는지", "한 달에 한 번, 다음 달 중순 발표", "입력하면 반영"),
-)
-
 @Composable
 private fun IndicatorCard(ind: Indicator) {
-    val info = INFO[ind.key]
+    val g = GUIDE[ind.key]
     val grey = ind.stale
-    val v: Double? = ind.value
-    val valueText = when {
-        ind.needInput -> "입력 필요"
-        v == null -> "-"
-        ind.key == "fear_greed" -> "${v.toInt()} ${ind.label ?: ""}"
-        ind.key == "margin_debt" -> String.format("%+.1f%%", v)
-        ind.key == "us10y" -> String.format("%.3f%%", v)
-        ind.key == "hy_spread" -> String.format("%.2f%%p", v)
-        else -> fmtNum(v)
-    }
-    val chg = if (ind.change != null && ind.key != "margin_debt") " ${arrow(ind.change)}${fmtNum(kotlin.math.abs(ind.change), if (ind.key == "fear_greed") 0 else 2)}" else ""
+    val dir = indicatorDirection(ind)
     Card {
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(ind.name, color = if (grey) Palette.Stale else Palette.Fg, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.weight(1f))
-            Text(valueText + chg, color = if (grey) Palette.Stale else changeColor(ind.change), fontSize = 15.sp)
-        }
-        if (info != null) Text(info.desc + if (grey) "  · 하루 넘게 지난 숫자" else "", color = Palette.Sub, fontSize = 12.sp)
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Palette.Box).padding(8.dp)) {
-            Meta("기준", fmtTime(ind.asOf) + (ind.published?.let { " (발표 ${fmtTime(it)})" } ?: ""))
-            if (info != null) {
-                Meta("바뀌는 때", info.changes)
-                Meta("앱 반영", info.app)
+            Text(ind.name, color = if (grey) Palette.Stale else Palette.Fg, fontSize = 15.sp,
+                fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Column(horizontalAlignment = Alignment.End) {
+                Text(fmtIndicatorValue(ind), color = if (grey) Palette.Stale else changeColor(dir), fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold)
+                val c = fmtIndicatorChange(ind)
+                if (c.isNotEmpty()) Text(c, color = if (grey) Palette.Stale else changeColor(dir), fontSize = 12.sp)
             }
+        }
+        if (g != null) {
+            Text(g.what + " · " + g.meaning + if (grey) "  · 하루 넘게 지난 숫자" else "", color = Palette.Sub, fontSize = 12.sp)
+        }
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Palette.Box).padding(8.dp)) {
+            if (g != null) Meta("기준치", g.levels)
+            Meta("기준 시각", fmtTime(ind.asOf) + (ind.published?.let { " (발표 ${fmtTime(it)})" } ?: ""))
+            Meta("바뀌는 때", g?.changes ?: (ind.cycle ?: "-"))
+            if (!ind.label.isNullOrBlank() && ind.key !in setOf("fear_greed")) Meta("참고", ind.label)
             Meta("출처", ind.source ?: "-")
         }
+    }
+}
+
+@Composable
+private fun CalendarCard(data: MarketData) {
+    val now = java.time.OffsetDateTime.now()
+    val events = data.calendar.mapNotNull { e ->
+        val t = runCatching { java.time.OffsetDateTime.parse(e.time) }.getOrNull() ?: return@mapNotNull null
+        if (t.isBefore(now.minusHours(36)) || t.isAfter(now.plusHours(72))) null else t to e
+    }.sortedBy { it.first }
+    if (events.isEmpty()) return
+    Card {
+        Text("경제 지표 일정 (미국·한국)", color = Palette.Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        events.forEach { (t, e) ->
+            val done = !t.isAfter(now)
+            Column(Modifier.padding(vertical = 3.dp)) {
+                Row {
+                    Text(fmtTime(e.time), color = Palette.Sub, fontSize = 12.sp, modifier = Modifier.width(78.dp))
+                    Text("${if (e.country == "USD") "🇺🇸" else "🇰🇷"} ${e.title}" + if (e.impact == "High") " ★" else "",
+                        color = if (done) Palette.Fg else Palette.Fg.copy(alpha = 0.7f), fontSize = 13.sp)
+                }
+                Text(
+                    "실제 ${e.actual ?: if (done) "확인 중" else "-"} · 예상 ${e.forecast ?: "-"} · 이전 ${e.previous ?: "-"}",
+                    color = Palette.Sub, fontSize = 11.sp, modifier = Modifier.padding(start = 78.dp),
+                )
+            }
+        }
+        Text("★ = 시장에 영향이 큰 지표 · 시각은 한국 기준", color = Palette.Faint, fontSize = 11.sp)
     }
 }
 

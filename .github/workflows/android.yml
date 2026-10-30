@@ -1,12 +1,17 @@
 name: android
 
 # 안드로이드 앱 설치 파일(APK)을 만든다. 앱 코드가 바뀌면 자동 실행.
+# main 에서 만들면 Releases(배포) 페이지에 올려서 휴대폰에서 바로 받을 수 있게 한다.
+#   항상 최신 파일: https://github.com/97yujh-droid/stock-widget/releases/latest/download/todaymarket.apk
 on:
   push:
     paths:
       - "android/**"
       - ".github/workflows/android.yml"
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -22,8 +27,19 @@ jobs:
         with:
           gradle-version: "8.14.3"
       - name: APK 만들기
-        run: gradle -p android assembleDebug --stacktrace
+        run: |
+          gradle -p android assembleDebug --stacktrace
+          cp android/app/build/outputs/apk/debug/app-debug.apk todaymarket.apk
       - uses: actions/upload-artifact@v4
         with:
           name: todaymarket-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: todaymarket.apk
+      - name: 배포 페이지에 올리기 (main 에서만)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v0.1.${GITHUB_RUN_NUMBER}" todaymarket.apk \
+            --title "오늘의 시장 v0.1.${GITHUB_RUN_NUMBER}" \
+            --notes "휴대폰에서 todaymarket.apk 를 눌러 내려받아 설치하세요. 이전 버전 위에 덮어 설치하면 설정이 그대로 남아요." \
+            --latest

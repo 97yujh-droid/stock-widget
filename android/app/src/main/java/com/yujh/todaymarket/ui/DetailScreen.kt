@@ -33,13 +33,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.yujh.todaymarket.data.AppSettings
 import com.yujh.todaymarket.data.Indicator
+import com.yujh.todaymarket.data.arrange
+import com.yujh.todaymarket.data.returnOf
 import com.yujh.todaymarket.data.MarketData
 import com.yujh.todaymarket.data.ScoreItem
 import com.yujh.todaymarket.data.Stock
 
 @Composable
-fun DetailScreen(data: MarketData?, loading: Boolean, error: String?, onRefresh: () -> Unit) {
+fun DetailScreen(
+    data: MarketData?, loading: Boolean, error: String?, settings: AppSettings,
+    onRefresh: () -> Unit, onOpenSettings: () -> Unit,
+) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -48,16 +54,16 @@ fun DetailScreen(data: MarketData?, loading: Boolean, error: String?, onRefresh:
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item { TopBar(data, loading, onRefresh) }
+        item { TopBar(data, loading, onRefresh, onOpenSettings) }
         if (error != null) item { Notice(error) }
         if (data == null) {
             item { Notice(if (loading) "데이터를 받아오는 중이에요…" else "아직 데이터가 없어요. ↻ 를 눌러 주세요.") }
             return@LazyColumn
         }
-        item { MarketScoreCard(data) }
-        item { SummaryCard(data) }
-        item { SectionTitle("관심 종목 · 종목 점수") }
-        items(data.stocks, key = { it.name }) { StockCard(it) }
+        if (settings.showMarketScore) item { MarketScoreCard(data) }
+        if (settings.showSummary) item { SummaryCard(data) }
+        item { SectionTitle(if (settings.showStockScore) "관심 종목 · 종목 점수" else "관심 종목") }
+        items(settings.arrange(data.stocks), key = { it.code }) { StockCard(it, settings) }
         item { SectionTitle("시장 지표") }
         items(data.indicators, key = { it.key }) { IndicatorCard(it) }
         item {
@@ -71,7 +77,7 @@ fun DetailScreen(data: MarketData?, loading: Boolean, error: String?, onRefresh:
 }
 
 @Composable
-private fun TopBar(data: MarketData?, loading: Boolean, onRefresh: () -> Unit) {
+private fun TopBar(data: MarketData?, loading: Boolean, onRefresh: () -> Unit, onOpenSettings: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(data?.title ?: "오늘의 시장", color = Palette.Fg, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
@@ -82,6 +88,10 @@ private fun TopBar(data: MarketData?, loading: Boolean, onRefresh: () -> Unit) {
         Text(
             "  ↻", color = Palette.Fg, fontSize = 22.sp,
             modifier = Modifier.clickable(enabled = !loading, onClick = onRefresh).padding(4.dp),
+        )
+        Text(
+            " ⚙", color = Palette.Fg, fontSize = 20.sp,
+            modifier = Modifier.clickable(onClick = onOpenSettings).padding(4.dp),
         )
     }
 }
@@ -204,14 +214,14 @@ private fun SummaryCard(data: MarketData) {
 // ---------------- 종목 ----------------
 
 @Composable
-private fun StockCard(s: Stock) {
+private fun StockCard(s: Stock, settings: AppSettings) {
     var open by remember { mutableStateOf(false) }
     Card {
         Column(Modifier.clickable { open = !open }) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(s.name, color = Palette.Fg, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Text("  ${s.code}", color = Palette.Faint, fontSize = 11.sp)
-                if (s.score != null) {
+                if (s.score != null && settings.showStockScore) {
                     Text("  ${s.score}${s.icon ?: ""}", color = zoneColor(s.score), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.weight(1f))
@@ -220,14 +230,24 @@ private fun StockCard(s: Stock) {
             }
             Text(s.issue ?: s.error ?: "-", color = Palette.Fg.copy(alpha = 0.85f), fontSize = 13.sp,
                 modifier = Modifier.padding(top = 4.dp))
+            val ret = settings.returnOf(s)
+            if (ret != null) {
+                val h = settings.holdings[s.code]
+                val money = if (s.currency == "KRW") fmtChange(ret.second, "KRW") + "원" else "$" + fmtChange(ret.second, "USD")
+                Text(
+                    "보유 ${h?.qty?.let { fmtNum(it, if (it % 1.0 == 0.0) 0 else 2) } ?: "-"}주 · 평단 ${fmtPrice(h?.avg, s.currency)} · 내 수익 " +
+                        String.format("%+.1f%%", ret.first) + " (${if (ret.second >= 0) "+" else "-"}$money)",
+                    color = changeColor(ret.first), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp),
+                )
+            }
             Text("가격 기준 ${fmtTime(s.asOf)} · 이슈는 최근 24시간 뉴스 · 30분마다 갱신",
                 color = Palette.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
-            Text(if (open) "접기 ▴" else "종목 점수 ${s.score ?: "-"} · 항목별 보기 ▾",
+            Text(if (open) "접기 ▴" else if (settings.showStockScore) "종목 점수 ${s.score ?: "-"} · 항목별 보기 ▾" else "자세히 보기 ▾",
                 color = Palette.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
         }
         if (open) {
             if (!s.comment.isNullOrBlank()) AiBox(s.comment)
-            s.scoreItems.forEach { ScoreRow(it) }
+            if (settings.showStockScore) s.scoreItems.forEach { ScoreRow(it) }
             if (s.news.isNotEmpty()) {
                 Text("근거 뉴스", color = Palette.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
                 s.news.forEach { n ->

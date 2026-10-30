@@ -132,14 +132,36 @@ def _peer_pers(items, self_code):
     return pers, sorted(keys)
 
 
+_kr_cache = {}
+
+
+def kr_integration(code):
+    if code not in _kr_cache:
+        j = get(f"https://m.stock.naver.com/api/stock/{code}/integration").json()
+        infos = {(x.get("code") or x.get("key")): x.get("value") for x in j.get("totalInfos", [])}
+        _kr_cache[code] = (j, infos)
+    return _kr_cache[code]
+
+
 def valuation_kr(code):
-    j = get(f"https://m.stock.naver.com/api/stock/{code}/integration").json()
-    infos = {x.get("code"): x.get("value") for x in j.get("totalInfos", [])}
+    j, infos = kr_integration(code)
     per, fper, pbr = num(infos.get("per")), num(infos.get("cnsPer")), num(infos.get("pbr"))
-    pers, keys = _peer_pers(j.get("industryCompareInfo"), code)
+    # 업종 비교 목록에는 PER이 없어서, 같은 업종 회사(최대 5곳)의 PER을 따로 읽는다
+    pers, names = [], []
+    for it in (j.get("industryCompareInfo") or [])[:6]:
+        pc = str(it.get("itemCode") or "")
+        if not pc or pc == code:
+            continue
+        try:
+            p = num(kr_integration(pc)[1].get("per"))
+            if p and 0 < p < 300:
+                pers.append(p)
+                names.append(it.get("stockName"))
+        except Exception:
+            pass
     return {"per": per, "fwd_per": fper, "pbr": pbr,
             "peer_per_median": median(pers) if pers else None,
-            "peer_count": len(pers), "peer_keys": keys[:15], "source": "네이버"}
+            "peer_count": len(pers), "peer_keys": names, "source": "네이버"}
 
 
 def valuation_us(stock):
@@ -149,15 +171,21 @@ def valuation_us(stock):
     q = _cnbc_cache.get(stock["code"], {})
     out = {"per": num(q.get("pe")), "fwd_per": num(q.get("fpe")), "pbr": None,
            "peer_per_median": None, "peer_count": 0, "peer_keys": [], "source": "CNBC"}
+    # 같은 업종 회사: 네이버 업종 비교 목록 → CNBC 에서 PER 한 번에 조회
     if stock.get("naver"):
         try:
             j = get(f"https://api.stock.naver.com/stock/{stock['naver']}/integration").json()
             items = (j.get("industryCompareInfo") or {}).get("globalStocks", [])
-            pers, keys = _peer_pers(items, stock["naver"])
-            out.update(peer_per_median=median(pers) if pers else None,
-                       peer_count=len(pers), peer_keys=keys[:15])
-        except Exception:
-            pass
+            syms = [str(it.get("reutersCode") or it.get("symbolCode") or "").split(".")[0] for it in items]
+            syms = [x for x in syms if x and x != stock["code"]][:6]
+            if syms:
+                cnbc_all(syms)
+                pers = [num(_cnbc_cache.get(x, {}).get("pe")) for x in syms]
+                pers = [p for p in pers if p and 0 < p < 300]
+                out.update(peer_per_median=median(pers) if pers else None,
+                           peer_count=len(pers), peer_keys=syms)
+        except Exception as e:
+            out["peer_error"] = str(e)[:100]
     return out
 
 

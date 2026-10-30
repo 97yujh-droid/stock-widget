@@ -36,7 +36,7 @@ def main():
     series = market_series()
     bench = {"KR": series["kospi"], "US": series["spx"]}
     mscore = market_score(data, series)
-    sscores, vals = {}, {}
+    sscores, vals, diag = {}, {}, []
     for s in config["stocks"]:
         rows = history_for(s)
         val = valuation_for(s)
@@ -45,6 +45,9 @@ def main():
         sscores[s["name"]] = stock_score(s, rows, bench[s["market"]], val, senti)
         if isinstance(rows, dict):
             rep.append(f"⚠️ {s['name']} 과거 주가 실패: {rows['error'][:120]}")
+        else:
+            hi = max(rows[-250:], key=lambda r: r[1])
+            diag.append(f"{s['name']}: {len(rows)}일, 첫 {rows[0]}, 끝 {rows[-1]}, 1년 최고 {hi}")
 
     try:
         mcomment, scomments, _ = explain_scores(config, mscore, sscores)
@@ -77,6 +80,7 @@ def main():
             rep.append(f"  - 업종 비교 {v.get('peer_count')}개사, 필드: {v.get('peer_keys')}")
         else:
             rep.append(f"  - 가치 지표 실패: {v.get('error', '')[:120]}")
+    rep += ["", "과거 주가 점검:"] + [f"- {d}" for d in diag]
     rep += ["</details>", "", "**오늘 시황**"] + [f"- {l}" for l in market_lines]
     rep.append(f"\n전체 걸린 시간: {time.time() - t0:.1f}초")
 

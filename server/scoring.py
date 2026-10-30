@@ -166,8 +166,10 @@ def stock_score(stock, rows, bench, val, sentiment):
     per, fper, peer = v.get("per"), v.get("fwd_per"), v.get("peer_per_median")
     fwd_ratio = fper / per if per and fper and per > 0 and fper > 0 else None
     peer_ratio = per / peer if per and peer and per > 0 else None
+    level = interp(per, [(8, 90), (15, 75), (25, 55), (40, 35), (80, 15), (150, 0)]) if per and per > 0 else None
     value = avg(interp(fwd_ratio, [(0.6, 100), (0.8, 80), (1.0, 55), (1.2, 30), (1.5, 10)]),
-                interp(peer_ratio, [(0.5, 100), (0.8, 75), (1.0, 55), (1.3, 30), (2.0, 5)]))
+                interp(peer_ratio, [(0.5, 100), (0.8, 75), (1.0, 55), (1.3, 30), (2.0, 5)]),
+                level, weights=[0.3, 0.4, 0.3])
 
     def f(x, fmt):
         return None if x is None else fmt.format(x)

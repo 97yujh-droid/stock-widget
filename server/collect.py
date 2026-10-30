@@ -7,6 +7,7 @@ import csv
 import io
 import json
 import os
+import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
@@ -39,11 +40,8 @@ def num(x):
         return None
     if isinstance(x, (int, float)):
         return float(x)
-    s = str(x).replace(",", "").replace("%", "").replace("+", "").strip()
-    try:
-        return float(s)
-    except ValueError:
-        return None
+    m = re.search(r"[-+]?\d+(?:\.\d+)?", str(x).replace(",", ""))
+    return float(m.group()) if m else None
 
 
 def get(url, **kw):

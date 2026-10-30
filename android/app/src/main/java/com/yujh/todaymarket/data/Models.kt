@@ -11,6 +11,18 @@ data class MarketData(
     val summary: Summary,
     val stocks: List<Stock>,
     val indicators: List<Indicator>,
+    val calendar: List<EconEvent> = emptyList(),
+)
+
+/** 경제 지표 일정 (CPI, PPI, 고용 등) */
+data class EconEvent(
+    val title: String,
+    val country: String,
+    val time: String?,
+    val impact: String?,
+    val forecast: String?,
+    val previous: String?,
+    val actual: String?,
 )
 
 data class ScoreItem(
@@ -56,6 +68,7 @@ data class Stock(
 
 data class Indicator(
     val key: String,
+    val group: String,      // score = 점수 지표, monitor = 모니터링 지표
     val name: String,
     val value: Double?,
     val label: String?,
@@ -141,6 +154,7 @@ fun parseMarketData(text: String): MarketData {
         indicators = j.optJSONArray("indicators").mapObjects { o ->
             Indicator(
                 key = o.str("key") ?: "",
+                group = o.str("group") ?: "score",
                 name = o.str("name") ?: "",
                 value = o.dbl("value"),
                 label = o.str("label"),
@@ -152,6 +166,17 @@ fun parseMarketData(text: String): MarketData {
                 cycle = o.str("cycle"),
                 stale = o.bool("stale"),
                 needInput = o.bool("need_input"),
+            )
+        },
+        calendar = j.optJSONArray("calendar").mapObjects { e ->
+            EconEvent(
+                title = e.str("title") ?: "",
+                country = e.str("country") ?: "",
+                time = e.str("time"),
+                impact = e.str("impact"),
+                forecast = e.str("forecast"),
+                previous = e.str("previous"),
+                actual = e.str("actual"),
             )
         },
     )

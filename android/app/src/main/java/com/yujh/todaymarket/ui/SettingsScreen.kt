@@ -93,6 +93,7 @@ fun SettingsScreen(
             }
         }
 
+        item { MonitorPicker(data, settings, onChange) }
         item { WatchlistEditor(stocks, settings, onChange) }
         item {
             Column {
@@ -330,5 +331,23 @@ private fun WatchlistEditor(stocks: List<Stock>, settings: AppSettings, onChange
             }
         }
         status?.let { Text(it, color = Palette.Sub, fontSize = 12.sp) }
+    }
+}
+
+
+// ---------------- 위젯에 보일 모니터링 지표 ----------------
+
+@Composable
+private fun MonitorPicker(data: MarketData?, settings: AppSettings, onChange: (AppSettings) -> Unit) {
+    val mons = data?.indicators?.filter { it.group == "monitor" } ?: emptyList()
+    Group("위젯에 보일 모니터링 지표") {
+        Text("점수 지표는 항상 보여요. 모니터링 지표는 고른 것만 위젯에 나와요. 앱 화면에는 모두 나와요.",
+            color = Palette.Sub, fontSize = 12.sp)
+        if (mons.isEmpty()) Text("데이터를 받은 뒤에 고를 수 있어요.", color = Palette.Sub, fontSize = 12.sp)
+        mons.forEach { m ->
+            Toggle(m.name, m.key in settings.widgetMonitors) { on ->
+                onChange(settings.copy(widgetMonitors = if (on) settings.widgetMonitors + m.key else settings.widgetMonitors - m.key))
+            }
+        }
     }
 }

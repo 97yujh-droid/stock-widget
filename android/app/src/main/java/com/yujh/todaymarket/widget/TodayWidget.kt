@@ -53,6 +53,9 @@ import com.yujh.todaymarket.ui.fmtNum
 import com.yujh.todaymarket.ui.fmtPct
 import com.yujh.todaymarket.ui.fmtPrice
 import com.yujh.todaymarket.ui.fmtTime
+import com.yujh.todaymarket.ui.fmtIndicatorChange
+import com.yujh.todaymarket.ui.fmtIndicatorValue
+import com.yujh.todaymarket.ui.indicatorDirection
 import com.yujh.todaymarket.ui.zoneColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -119,7 +122,7 @@ class TabAction : ActionCallback {
 // ---------------- 화면 ----------------
 
 /** 글씨 크기 설정을 곱한 글자 모양 */
-private class Fonts(private val scale: Float) {
+private class Fonts(val scale: Float) {
     fun s(color: Color, size: Float, bold: Boolean = false) = TextStyle(
         color = ColorProvider(color), fontSize = (size * scale).sp,
         fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
@@ -159,8 +162,14 @@ private fun WidgetBody(data: MarketData?, st: AppSettings) {
                 items(stocks, itemId = { it.code.hashCode().toLong() }) { StockRow(it, st, f) }
             }
             if (showInds) {
-                item { Section("시장 지표", "회색 = 하루 넘게 지난 숫자", f) }
-                items(data.indicators, itemId = { it.key.hashCode().toLong() }) { IndicatorRow(it, f) }
+                val scoreInds = data.indicators.filter { it.group == "score" }
+                val monInds = data.indicators.filter { it.group == "monitor" && it.key in st.widgetMonitors }
+                item { Section("점수 지표", "회색 = 하루 넘게 지난 숫자", f) }
+                items(scoreInds, itemId = { ("s" + it.key).hashCode().toLong() }) { IndicatorRow(it, f) }
+                if (monInds.isNotEmpty()) {
+                    item { Section("모니터링 지표", "점수 제외", f) }
+                    items(monInds, itemId = { ("m" + it.key).hashCode().toLong() }) { IndicatorRow(it, f) }
+                }
             }
             item {
                 Text("누르면 자세히 보기", style = f.s(Palette.Faint, 10f),
@@ -265,18 +274,7 @@ private fun StockRow(s: Stock, st: AppSettings, f: Fonts) {
 @Composable
 private fun IndicatorRow(ind: Indicator, f: Fonts) {
     val grey = ind.stale
-    val v = ind.value
-    val valueText = when {
-        ind.needInput -> "입력 필요"
-        v == null -> "-"
-        ind.key == "fear_greed" -> "${v.toInt()} ${ind.label ?: ""}"
-        ind.key == "margin_debt" -> String.format("%+.1f%%", v)
-        ind.key == "us10y" -> String.format("%.3f%%", v)
-        ind.key == "hy_spread" -> String.format("%.2f", v)
-        else -> fmtNum(v)
-    }
-    val col = if (grey) Palette.Stale else changeColor(ind.change)
-    val chg = ind.change
+    val col = if (grey) Palette.Stale else changeColor(indicatorDirection(ind))
     Row(modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp).clickable(openApp),
         verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = GlanceModifier.defaultWeight()) {
@@ -284,10 +282,8 @@ private fun IndicatorRow(ind: Indicator, f: Fonts) {
             Text("${fmtTime(ind.asOf)} 기준 · ${ind.cycle ?: ""}",
                 style = f.s(if (grey) Color(0xFF4E545A) else Color(0xFF6F9BD1), 10f), maxLines = 1)
         }
-        Text(valueText, style = f.s(col, 13f))
-        Text(
-            if (chg == null || ind.key == "margin_debt") "" else "${arrow(chg)}${fmtNum(kotlin.math.abs(chg), if (ind.key == "fear_greed") 0 else 2)}",
-            style = f.s(col, 12f), modifier = GlanceModifier.width(66.dp).padding(start = 6.dp),
-        )
+        Text(fmtIndicatorValue(ind), style = f.s(col, 13f))
+        Text(fmtIndicatorChange(ind), style = f.s(col, 12f),
+            modifier = GlanceModifier.width((70 * f.scale).dp).padding(start = 6.dp))
     }
 }

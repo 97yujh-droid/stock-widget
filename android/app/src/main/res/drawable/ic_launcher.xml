@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 앱 아이콘: 검은 바탕 위 해와 구름 (오늘의 시장 = 시장 날씨) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#000000"
+        android:pathData="M0,0h108v108h-108z" />
+    <path
+        android:fillColor="#F5C542"
+        android:pathData="M62,44m-16,0a16,16 0,1 1,32 0a16,16 0,1 1,-32 0" />
+    <path
+        android:fillColor="#9BD36A"
+        android:pathData="M30,74h44a12,12 0,0 0,0 -24a16,16 0,0 0,-30 4a10,10 0,0 0,-14 20z" />
+</vector>

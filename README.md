@@ -6,6 +6,7 @@
   시장 점수와 종목 점수를 계산해 `latest.json` 을 GitHub Pages 에 올립니다.
 - **결과 파일**: https://97yujh-droid.github.io/stock-widget/latest.json
 - **시안**: https://97yujh-droid.github.io/stock-widget/mockup.html
+- **앱 설치 파일**: https://github.com/97yujh-droid/stock-widget/releases/latest/download/todaymarket.apk
 - **앱/위젯**: 결과 파일만 읽어서 보여줍니다. AI 열쇠는 앱에 없습니다.
   보유 수량·평단은 휴대폰에만 저장됩니다.
 
@@ -16,6 +17,7 @@
 | `server/run.py` | 전체 실행 (수집 → AI → 점수 → 결과 파일) |
 | `data/manual/margin_debt.json` | Margin Debt 월간 값 (매달 직접 입력) |
 | `docs/widget-mockup.html` | 위젯 시안 |
+| `android/` | 안드로이드 앱 + 홈 화면 위젯 (Kotlin, Compose, Glance) |
 
 ## 필요한 금고(Secrets)
 `FRED_API_KEY`, `GEMINI_API_KEY`

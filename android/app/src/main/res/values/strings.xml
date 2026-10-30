@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">오늘의 시장</string>
+    <string name="widget_desc">시장 점수, 시황, 관심 종목, 지표를 한 화면에</string>
+</resources>

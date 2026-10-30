@@ -88,7 +88,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .set-row{flex-wrap:wrap}
 .hin{margin-left:auto;font-size:.8em;color:var(--sub);white-space:nowrap}
 .hin i{font-style:normal;display:inline-block;min-width:4.6em;border:1px solid #333;border-radius:6px;padding:1px 6px;color:var(--fg);margin:0 .3em;text-align:right}
-.set-row .hin+.x{margin-left:.4em}
+.hin[hidden]{display:none}
+.set-row .hin:not([hidden])+.x{margin-left:.4em}
 .hold{font-size:.84em;color:#c3c9cf;margin-top:.35em}
 details.sd2{margin-top:.45em}
 details.sd2 summary{cursor:pointer;font-size:.86em;color:var(--sub);list-style:none}
@@ -181,6 +182,8 @@ details.sd2 summary::-webkit-details-marker{display:none}
     </div>
     <label for="sm">시황 요약 보이기 <b id="smv">켬</b></label>
     <input type="range" id="sm" min="0" max="1" step="1" value="1">
+    <label for="rt">내 수익률 보이기 <b id="rtv">끔</b></label>
+    <input type="range" id="rt" min="0" max="1" step="1" value="0">
   </div>
 
   <div class="note">
@@ -273,11 +276,12 @@ function chip(n){const v=sscore(n);if(v==null)return "";const z=zone(v);return `
 function holdCalc(s){const x=SC[s[0]];if(!x||!x.qty)return null;const p=parseFloat(s[2].replace(/,/g,""));
   return {r:(p/x.avg-1)*100,amt:(p-x.avg)*x.qty,us:/^[A-Z]/.test(s[1]),x}}
 const signPct=r=>(r>0?"+":"")+r.toFixed(1)+"%";
-function metaTxt(s){const v=chip(s[0]),h=holdCalc(s);if(!v&&!h)return "";
+const showRet=()=>document.getElementById("rt")?.value==="1";
+function metaTxt(s){const v=chip(s[0]),h=showRet()?holdCalc(s):null;if(!v&&!h)return "";
   return `<span class="smeta">${v}${h?` · 내 수익 <span class="${cls(h.r)}">${signPct(h.r)}</span>`:""}</span> · `}
 function holdTxt(s){const h=holdCalc(s);return h?` · 내 수익 <span class="${cls(h.r)}">${signPct(h.r)}</span>`:""}
 function money(v,us){return us?"$"+Math.abs(v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}):Math.round(Math.abs(v)).toLocaleString("ko-KR")+"원"}
-function stockDetail(s){const x=SC[s[0]];if(!x)return "";const v=sscore(s[0]),z=zone(v),h=holdCalc(s);
+function stockDetail(s){const x=SC[s[0]];if(!x)return "";const v=sscore(s[0]),z=zone(v),h=showRet()?holdCalc(s):null;
   const hold=h?`<div class="hold">보유 ${x.qty}주 · 평단 ${h.us?"$"+x.avg.toFixed(2):x.avg.toLocaleString("ko-KR")+"원"} · 내 수익 <span class="${cls(h.r)}">${signPct(h.r)} (${h.amt>=0?"+":"-"}${money(h.amt,h.us)})</span></div>`:"";
   return `${hold}<details class="sd2"${s[0]==="삼성전자"?" open":""}><summary>종목 점수 <b style="color:${z[3]}">${v}</b> ${z[1]} ${z[2]} · 항목별 보기 ▾</summary>
    <p class="aiwhy">🤖 ${x.ai}</p>${x.f.map((f,i)=>`<div class="fx"><b>${FN[i]}<small>가중치 ${FW[i]}</small></b><span class="raw">${f}점</span><div class="bar2"><span><i style="width:${f}%;background:${zone(f)[3]}"></i></span><em>+${(FW[i]*f/100).toFixed(1)}</em></div></div>`).join("")}</details>`}
@@ -333,8 +337,8 @@ function render(){
     sc.className="app";
     sc.innerHTML=`<div class="app-top"><b>‹ 설정</b></div>
     <div class="card"><h3>관심·보유 종목 (끌어서 순서 바꾸기)</h3>
-      <p class="hint">평단과 수량은 선택이에요. 이 휴대폰에만 저장되고 서버로 보내지 않아요.</p>
-      ${S.map(s=>{const x=SC[s[0]]||{},us=/^[A-Z]/.test(s[1]);return `<div class="set-row"><span class="h">☰</span>${s[0]}<span class="hin">평단<i>${x.avg?(us?"$"+x.avg.toFixed(2):x.avg.toLocaleString("ko-KR")):"-"}</i>수량<i>${x.qty||"-"}</i></span><span class="x">삭제</span></div>`}).join("")}
+      <p class="hint">아래 '내 수익률 보이기'를 켜면 평단·수량 입력칸이 나와요. 입력한 값은 이 휴대폰에만 저장돼요.</p>
+      ${S.map(s=>{const x=SC[s[0]]||{},us=/^[A-Z]/.test(s[1]);return `<div class="set-row"><span class="h">☰</span>${s[0]}<span class="hin"${showRet()?"":" hidden"}>평단<i>${x.avg?(us?"$"+x.avg.toFixed(2):x.avg.toLocaleString("ko-KR")):"-"}</i>수량<i>${x.qty||"-"}</i></span><span class="x">삭제</span></div>`}).join("")}
       <div class="add"><input id="addq" placeholder="종목 이름이나 코드 입력" aria-label="종목 추가"><button type="button">추가</button></div></div>
     <div class="card"><h3>위젯 모양</h3>
       <div class="opt">페이지 구성<span>한 장 / 두 장</span></div>
@@ -342,7 +346,8 @@ function render(){
       <div class="opt">종목 칸 : 지표 칸<span>55 : 45</span></div>
       <div class="opt">시황 요약 보이기<span>켬</span></div>
       <div class="opt">시장 점수 보이기<span>켬</span></div>
-      <div class="opt">종목 점수·내 수익률 보이기<span>켬</span></div>
+      <div class="opt">종목 점수 보이기<span>켬</span></div>
+      <div class="opt">내 수익률 보이기<span>${showRet()?"켬":"끔 (기본)"}</span></div>
       <div class="opt">상승 색<span>빨강 (한국식)</span></div>
       <div class="opt">새 데이터 받기<span>30분마다</span></div>
       <div class="opt">시황 요약 시각<span>06:00 · 08:00 · 12:00 · 15:40 · 21:00</span></div></div>`;
@@ -351,14 +356,15 @@ function render(){
   $("whv").textContent=$("wh").value+"%";
   $("spv").textContent=$("sp").value+" : "+(100-$("sp").value);
   $("smv").textContent=$("sm").value==="1"?"켬":"끔";
+  $("rtv").textContent=showRet()?"켬":"끔";
   $("spbox").classList.toggle("dis",st.pages===2||off);
   if(st.pages===2) $("sp").disabled=true;
 }
 $("cyc").innerHTML=I.map(i=>`<tr><td>${i.n}</td><td>${{"30분":"평일 계속","美장중":"미국 장중만","월 1회":"한 달에 1번","매일 23시":"매일 밤 11시쯤"}[i.c]}</td><td>${i.A}</td></tr>`).join("")
- +`<tr><td>국내 주식</td><td>09:00~15:30</td><td>장중 30분마다</td></tr><tr><td>미국 주식</td><td>밤 10:30~새벽 5:00</td><td>장중 30분마다</td></tr><tr><td>AI 시황 요약</td><td>직전 국내·미국 장</td><td>06·08·12·15:40·21시</td></tr><tr><td>종목 이슈</td><td>최근 24시간 뉴스</td><td>30분마다</td></tr><tr><td>시장 점수</td><td>위 지표로 계산</td><td>30분마다</td></tr><tr><td>종목 점수</td><td>주가·뉴스로 계산</td><td>30분마다</td></tr><tr><td>내 수익률</td><td>현재가 ÷ 평단</td><td>휴대폰에서 계산</td></tr>`;
+ +`<tr><td>국내 주식</td><td>09:00~15:30</td><td>장중 30분마다</td></tr><tr><td>미국 주식</td><td>밤 10:30~새벽 5:00</td><td>장중 30분마다</td></tr><tr><td>AI 시황 요약</td><td>직전 국내·미국 장</td><td>06·08·12·15:40·21시</td></tr><tr><td>종목 이슈</td><td>최근 24시간 뉴스</td><td>30분마다</td></tr><tr><td>시장 점수</td><td>위 지표로 계산</td><td>30분마다</td></tr><tr><td>종목 점수</td><td>주가·뉴스로 계산</td><td>30분마다</td></tr><tr><td>내 수익률 (기본 꺼짐)</td><td>현재가 ÷ 평단</td><td>휴대폰에서 계산</td></tr>`;
 function setView(v){st.view=v;document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.v===v));render()}
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>setView(b.dataset.v));
 document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>{st.pages=+b.dataset.p;document.querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed",x===b));render()});
-["fs","wh","sp","sm"].forEach(id=>$(id).oninput=render);
+["fs","wh","sp","sm","rt"].forEach(id=>$(id).oninput=render);
 render();
 </script>

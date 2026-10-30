@@ -207,19 +207,83 @@ def try_page(url, must):
     return f"{r.status_code}, {len(txt):,}자, '{must}' {'있음' if hit else '없음'}, 엑셀링크 {links}"
 
 
+# ---------- 4차 시험(3-3단계): 과거 주가·PER/PBR·시장 점수용 시계열 ----------
+def peek_json(url, n=260):
+    j = get(url).json()
+    keys = list(j.keys())[:12] if isinstance(j, dict) else f"list[{len(j)}]"
+    return f"키 {keys} / {short(json.dumps(j, ensure_ascii=False), n)}"
+
+
+def naver_fchart(symbol, count=250):
+    txt = get(f"https://fchart.stock.naver.com/sise.nhn?symbol={symbol}&timeframe=day&count={count}&requestType=0").text
+    rows = re.findall(r'data="([^"]+)"', txt)
+    return f"{len(rows)}일치, 첫날 {rows[0] if rows else '-'} / 마지막 {rows[-1] if rows else '-'}"
+
+
+def naver_chart_api(kind, code):
+    url = (f"https://api.stock.naver.com/chart/{kind}/item/{code}/day"
+           "?startDateTime=202501010000&endDateTime=202612310000")
+    j = get(url).json()
+    rows = j if isinstance(j, list) else j.get("priceInfos", j)
+    return f"{len(rows)}일치, 마지막 {short(json.dumps(rows[-1], ensure_ascii=False), 160) if rows else '-'}"
+
+
+def cnbc_bars(sym):
+    url = f"https://ts-api.cnbc.com/harmony/app/bars/{quote(sym)}/1D/20250101000000/20261231000000/adjusted/EST5EDT.json"
+    j = get(url).json()
+    bars = j.get("barData", {}).get("priceBars", [])
+    return f"{len(bars)}일치, 마지막 {short(json.dumps(bars[-1]), 160) if bars else short(json.dumps(j), 160)}"
+
+
+def naver_integration(path):
+    j = get(f"https://m.stock.naver.com/api/stock/{path}/integration").json()
+    infos = {x.get("code") or x.get("key"): x.get("value") for x in j.get("totalInfos", [])}
+    pick = {k: v for k, v in infos.items() if k and any(t in k.lower() for t in ("per", "pbr", "eps", "bps"))}
+    ind = j.get("industryCompareInfo")
+    return f"PER/PBR관련 {pick} / 업종비교 {'있음' if ind else '없음'} {short(json.dumps(ind, ensure_ascii=False), 120) if ind else ''}"
+
+
+def naver_world_integration(code):
+    return peek_json(f"https://api.stock.naver.com/stock/{code}/integration", 300)
+
+
+def cnbc_fund(sym):
+    url = ("https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol"
+           f"?symbols={sym}&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json")
+    q = get(url).json()["FormattedQuoteResult"]["FormattedQuote"][0]
+    return {k: q.get(k) for k in ("pe", "fpe", "pb", "pbr", "eps", "yrhiprice", "yrloprice", "beta") if k in q} or short(list(q.keys()), 300)
+
+
+def fred_hist(series):
+    if not FRED_KEY:
+        raise RuntimeError("FRED_API_KEY 가 비어 있음")
+    try:
+        obs = get("https://api.stlouisfed.org/fred/series/observations", params={
+            "series_id": series, "api_key": FRED_KEY, "file_type": "json",
+            "observation_start": "2025-06-01"}).json()["observations"]
+    except Exception as e:
+        raise RuntimeError(hide_key(e)) from None
+    vals = [o for o in obs if o["value"] != "."]
+    return f"{len(vals)}개, 마지막 {vals[-1]['date']} = {vals[-1]['value']}"
+
+
 TESTS = [
-    ("지표", "하이일드 스프레드 (FRED 공식 API)", lambda: fred_api("BAMLH0A0HYM2")),
-    ("지표", "미국 10년물 (FRED 공식 API, 예비)", lambda: fred_api("DGS10")),
-    ("Margin", "FINRA 옛 주소", lambda: try_page(
-        "https://www.finra.org/rules-guidance/key-topics/margin-accounts/margin-statistics", "margin")),
-    ("Margin", "FINRA 데이터 API", lambda: try_page(
-        "https://api.finra.org/metadata/group/finra/name/marginStatistics", "margin")),
-    ("Margin", "longtermtrends", lambda: try_page("https://www.longtermtrends.net/margin-debt/", "margin")),
-    ("Margin", "gurufocus", lambda: try_page(
-        "https://www.gurufocus.com/economic_indicators/4266/finra-investor-margin-debt", "margin")),
-    ("Margin", "ycharts", lambda: try_page("https://ycharts.com/indicators/finra_margin_debt", "margin")),
-    ("Margin", "advisorperspectives", lambda: try_page(
-        "https://www.advisorperspectives.com/dshort/updates/latest/margin-debt", "margin")),
+    ("과거주가", "삼성전자 일봉 (네이버 fchart)", lambda: naver_fchart("005930")),
+    ("과거주가", "삼성전자 일봉 (네이버 chart API)", lambda: naver_chart_api("domestic", "005930")),
+    ("과거주가", "코스피 일봉 (네이버 fchart)", lambda: naver_fchart("KOSPI")),
+    ("과거주가", "엔비디아 일봉 (네이버 chart API)", lambda: naver_chart_api("foreign", "NVDA.O")),
+    ("과거주가", "엔비디아 일봉 (CNBC)", lambda: cnbc_bars("NVDA")),
+    ("과거주가", "TSMC 일봉 (CNBC)", lambda: cnbc_bars("TSM")),
+    ("과거주가", "S&P500 일봉 (CNBC)", lambda: cnbc_bars(".SPX")),
+    ("과거주가", "S&P500 (FRED)", lambda: fred_hist("SP500")),
+    ("가치", "삼성전자 PER/PBR (네이버)", lambda: naver_integration("005930")),
+    ("가치", "엔비디아 (네이버 해외)", lambda: naver_world_integration("NVDA.O")),
+    ("가치", "엔비디아·TSMC (CNBC 재무)", lambda: f"NVDA {cnbc_fund('NVDA')} / TSM {cnbc_fund('TSM')}"),
+    ("시장점수", "장단기 금리차 (FRED T10Y2Y)", lambda: fred_hist("T10Y2Y")),
+    ("시장점수", "달러 지수 넓은 범위 (FRED DTWEXBGS)", lambda: fred_hist("DTWEXBGS")),
+    ("시장점수", "원/달러 (FRED DEXKOUS)", lambda: fred_hist("DEXKOUS")),
+    ("시장점수", "하이일드 1년치 (FRED)", lambda: fred_hist("BAMLH0A0HYM2")),
+    ("시장점수", "미국 10년물 1년치 (FRED)", lambda: fred_hist("DGS10")),
 ]
 
 

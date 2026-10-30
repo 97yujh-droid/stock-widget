@@ -267,23 +267,19 @@ def fred_hist(series):
     return f"{len(vals)}개, 마지막 {vals[-1]['date']} = {vals[-1]['value']}"
 
 
+# ---------- 5차 시험: 앱 종목 검색(네이버 자동완성) ----------
+def naver_ac(q):
+    j = get(f"https://ac.stock.naver.com/ac?q={quote(q)}&target=stock,index").json()
+    items = j.get("items", j)
+    return short(json.dumps(items[:3] if isinstance(items, list) else j, ensure_ascii=False), 600)
+
+
 TESTS = [
-    ("과거주가", "삼성전자 일봉 (네이버 fchart)", lambda: naver_fchart("005930")),
-    ("과거주가", "삼성전자 일봉 (네이버 chart API)", lambda: naver_chart_api("domestic", "005930")),
-    ("과거주가", "코스피 일봉 (네이버 fchart)", lambda: naver_fchart("KOSPI")),
-    ("과거주가", "엔비디아 일봉 (네이버 chart API)", lambda: naver_chart_api("foreign", "NVDA.O")),
-    ("과거주가", "엔비디아 일봉 (CNBC)", lambda: cnbc_bars("NVDA")),
-    ("과거주가", "TSMC 일봉 (CNBC)", lambda: cnbc_bars("TSM")),
-    ("과거주가", "S&P500 일봉 (CNBC)", lambda: cnbc_bars(".SPX")),
-    ("과거주가", "S&P500 (FRED)", lambda: fred_hist("SP500")),
-    ("가치", "삼성전자 PER/PBR (네이버)", lambda: naver_integration("005930")),
-    ("가치", "엔비디아 (네이버 해외)", lambda: naver_world_integration("NVDA.O")),
-    ("가치", "엔비디아·TSMC (CNBC 재무)", lambda: f"NVDA {cnbc_fund('NVDA')} / TSM {cnbc_fund('TSM')}"),
-    ("시장점수", "장단기 금리차 (FRED T10Y2Y)", lambda: fred_hist("T10Y2Y")),
-    ("시장점수", "달러 지수 넓은 범위 (FRED DTWEXBGS)", lambda: fred_hist("DTWEXBGS")),
-    ("시장점수", "원/달러 (FRED DEXKOUS)", lambda: fred_hist("DEXKOUS")),
-    ("시장점수", "하이일드 1년치 (FRED)", lambda: fred_hist("BAMLH0A0HYM2")),
-    ("시장점수", "미국 10년물 1년치 (FRED)", lambda: fred_hist("DGS10")),
+    ("검색", "삼성", lambda: naver_ac("삼성")),
+    ("검색", "005930", lambda: naver_ac("005930")),
+    ("검색", "엔비디아", lambda: naver_ac("엔비디아")),
+    ("검색", "MSFT", lambda: naver_ac("MSFT")),
+    ("검색", "TSM", lambda: naver_ac("TSM")),
 ]
 
 

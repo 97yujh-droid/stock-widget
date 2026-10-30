@@ -25,6 +25,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -114,6 +115,7 @@ fun SettingsScreen(
 
         item { MonitorPicker(data, settings, onChange) }
         item { WatchlistEditor(stocks, settings, onChange) }
+        item { MarginDebtEditor(settings) }
         item {
             Column {
                 Text("관심 종목 (순서·숨기기·삭제)", color = Palette.Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
@@ -354,6 +356,110 @@ private fun WatchlistEditor(stocks: List<Stock>, settings: AppSettings, onChange
     }
 }
 
+
+// ---------------- Margin Debt 직접 입력 ----------------
+
+private fun shiftMonth(ym: String, months: Int): String {
+    val y = ym.take(4).toInt()
+    val m = ym.takeLast(2).toInt()
+    val t = y * 12 + (m - 1) + months
+    return String.format("%04d-%02d", t / 12, t % 12 + 1)
+}
+
+private fun parseAmount(s: String): Long? = s.replace(",", "").replace(" ", "").toLongOrNull()?.takeIf { it > 0 }
+
+@Composable
+private fun MarginDebtEditor(settings: AppSettings) {
+    val scope = rememberCoroutineScope()
+    var history by remember { mutableStateOf<Map<String, Long>?>(null) }
+    var month by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    var agoAmount by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    val token = settings.githubToken
+
+    LaunchedEffect(token) {
+        if (token.isBlank()) return@LaunchedEffect
+        try {
+            val h = WatchlistApi.marginHistory(token)
+            history = h
+            if (month.isBlank()) month = h.keys.maxOrNull()?.let { shiftMonth(it, 1) } ?: ""
+        } catch (e: Exception) {
+            status = "불러오지 못했어요: ${e.message}"
+        }
+    }
+
+    Group("Margin Debt 입력 (한 달에 한 번)") {
+        Text("FINRA 누리집(finra.org → Margin Statistics) 표의 맨 위 줄 \"Debit Balances\" 숫자를 그대로 넣어 주세요. 단위는 백만 달러예요. 보통 매달 셋째 주에 지난달 숫자가 나와요.",
+            color = Palette.Sub, fontSize = 12.sp)
+        if (token.isBlank()) {
+            Text("먼저 위 \"관심 종목 추가\"에서 GitHub 열쇠를 연결해 주세요.", color = Palette.Faint, fontSize = 12.sp)
+            return@Group
+        }
+        val h = history
+        if (h == null) {
+            Text("저장된 숫자를 불러오는 중…", color = Palette.Faint, fontSize = 12.sp)
+        } else {
+            h.entries.sortedByDescending { it.key }.take(3).forEach { (k, v) ->
+                Text("$k   ${String.format("%,d", v)}", color = Palette.Fg.copy(alpha = 0.8f), fontSize = 12.sp)
+            }
+            OutlinedTextField(
+                value = month, onValueChange = { month = it.trim() },
+                label = { Text("몇 월 숫자인지 (예: 2026-10)", fontSize = 12.sp) },
+                singleLine = true, modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = amount, onValueChange = { amount = it },
+                label = { Text("Debit Balances (예: 1,480,054)", fontSize = 12.sp) },
+                singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            val validMonth = Regex("""\d{4}-(0[1-9]|1[0-2])""").matches(month)
+            val agoMonth = if (validMonth) shiftMonth(month, -12) else null
+            val agoKnown = agoMonth?.let { h[it] }
+            if (agoMonth != null && agoKnown == null) {
+                OutlinedTextField(
+                    value = agoAmount, onValueChange = { agoAmount = it },
+                    label = { Text("1년 전($agoMonth) 숫자도 필요해요", fontSize = 12.sp) },
+                    singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            val now = parseAmount(amount)
+            val ago = agoKnown ?: parseAmount(agoAmount)
+            if (now != null && ago != null) {
+                Text("1년 전($agoMonth)보다 ${String.format("%+.1f", (now.toDouble() / ago - 1) * 100)}%",
+                    color = Palette.Accent, fontSize = 12.sp)
+            }
+            SmallButton(if (busy) "저장 중…" else "저장하기") {
+                if (busy) return@SmallButton
+                if (!validMonth) { status = "월은 2026-10 처럼 써 주세요."; return@SmallButton }
+                if (now == null) { status = "숫자를 확인해 주세요."; return@SmallButton }
+                val values = mutableMapOf(month to now)
+                if (agoKnown == null) {
+                    val a = parseAmount(agoAmount) ?: run { status = "1년 전($agoMonth) 숫자도 넣어 주세요."; return@SmallButton }
+                    values[agoMonth!!] = a
+                }
+                busy = true
+                status = "저장하는 중…"
+                scope.launch {
+                    status = try {
+                        WatchlistApi.saveMargin(token, values)
+                        history = h + values
+                        amount = ""; agoAmount = ""
+                        month = shiftMonth(month, 1)
+                        "저장했어요 ✓ 서버가 바로 다시 계산해서 2~3분 뒤 ↻ 하면 나와요."
+                    } catch (e: Exception) {
+                        "저장하지 못했어요: ${e.message}"
+                    }
+                    busy = false
+                }
+            }
+        }
+        status?.let { Text(it, color = Palette.Sub, fontSize = 12.sp) }
+    }
+}
 
 // ---------------- 위젯에 보일 모니터링 지표 ----------------
 

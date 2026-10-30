@@ -185,12 +185,21 @@ def cnn_fear_greed():
 
 def margin_debt():
     m = json.loads((ROOT / "data/manual/margin_debt.json").read_text(encoding="utf-8"))
-    if not m.get("balance") or not m.get("balance_year_ago"):
+    hist = {k: v for k, v in (m.get("history") or {}).items() if v}
+    if m.get("month") and m.get("balance"):          # 예전 형식도 읽기
+        hist.setdefault(m["month"], m["balance"])
+    if not hist:
         return {"price": None, "need_input": True, "source": "직접 입력",
                 "error": "아직 입력되지 않았어요"}
-    yoy = (m["balance"] / m["balance_year_ago"] - 1) * 100
-    return {"price": round(yoy, 1), "balance": m["balance"], "as_of": m["month"] + " 월말",
-            "source": "FINRA (직접 입력)"}
+    month = max(hist)
+    y, mo = month.split("-")
+    ago = hist.get(f"{int(y) - 1}-{mo}") or (m.get("balance_year_ago") if m.get("month") == month else None)
+    if not ago:
+        return {"price": None, "need_input": True, "balance": hist[month], "as_of": month + " 월말",
+                "source": "FINRA (앱에서 입력)", "error": f"1년 전({int(y) - 1}-{mo}) 숫자가 필요해요"}
+    yoy = (hist[month] / ago - 1) * 100
+    return {"price": round(yoy, 1), "balance": hist[month], "as_of": month + " 월말",
+            "source": "FINRA (앱에서 입력)"}
 
 
 def google_news(query, limit):

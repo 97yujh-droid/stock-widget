@@ -25,7 +25,9 @@ data class SearchItem(
  * GitHub 열쇠는 이 휴대폰에만 저장된다.
  */
 object WatchlistApi {
-    private const val API = "https://api.github.com/repos/97yujh-droid/stock-widget/contents/server/config.json"
+    private const val BASE = "https://api.github.com/repos/97yujh-droid/stock-widget/contents/"
+    private const val API = BASE + "server/config.json"
+    private const val MARGIN = "data/manual/margin_debt.json"
 
     // ---------------- 검색 ----------------
 
@@ -85,25 +87,58 @@ object WatchlistApi {
         out
     }
 
-    /** 설정 파일을 읽어 종목 목록을 바꾸고 다시 저장. 동시에 바뀌어 충돌하면 한 번 더 시도. */
+    /** 설정 파일을 읽어 종목 목록을 바꾸고 다시 저장. */
     private suspend fun edit(token: String, message: String, change: (JSONArray) -> JSONArray) =
+        editFile(token, "server/config.json", message) { config ->
+            config.put("stocks", change(config.getJSONArray("stocks")))
+        }
+
+    // ---------------- Margin Debt 직접 입력 ----------------
+
+    /** 저장된 월별 숫자 (예: "2026-09" → 1480054, 단위 백만 달러) */
+    suspend fun marginHistory(token: String): Map<String, Long> = withContext(Dispatchers.IO) {
+        try {
+            val (json, _) = readFile(token, MARGIN)
+            val h = json.optJSONObject("history") ?: JSONObject()
+            h.keys().asSequence().associateWith { h.optLong(it) }.filterValues { it > 0 }.toSortedMap()
+        } catch (e: Exception) {
+            throw Exception(friendly(e))
+        }
+    }
+
+    /** 한 달 또는 여러 달 숫자 저장 → 서버가 바로 다시 계산 */
+    suspend fun saveMargin(token: String, values: Map<String, Long>) =
+        editFile(token, MARGIN, "앱에서 Margin Debt 입력: ${values.keys.sorted().joinToString()}") { json ->
+            val h = json.optJSONObject("history") ?: JSONObject()
+            values.forEach { (k, v) -> h.put(k, v) }
+            val sorted = JSONObject()
+            h.keys().asSequence().sorted().forEach { sorted.put(it, h.get(it)) }
+            json.put("history", sorted)
+            json.remove("month"); json.remove("balance"); json.remove("balance_year_ago")
+        }
+
+    private fun readFile(token: String, path: String): Pair<JSONObject, String> {
+        val file = JSONObject(request("$BASE$path?ref=main", "GET", token, null))
+        val raw = String(Base64.decode(file.getString("content"), Base64.DEFAULT), Charsets.UTF_8)
+        return JSONObject(raw) to file.getString("sha")
+    }
+
+    /** GitHub 의 JSON 파일을 읽어 고치고 다시 저장. 동시에 바뀌어 충돌하면 한 번 더 시도. */
+    private suspend fun editFile(token: String, path: String, message: String, change: (JSONObject) -> Unit) =
         withContext(Dispatchers.IO) {
             var lastError: Exception? = null
             repeat(2) {
                 try {
-                    val file = JSONObject(request("$API?ref=main", "GET", token, null))
-                    val sha = file.getString("sha")
-                    val raw = String(Base64.decode(file.getString("content"), Base64.DEFAULT), Charsets.UTF_8)
-                    val config = JSONObject(raw)
-                    config.put("stocks", change(config.getJSONArray("stocks")))
-                    val newText = config.toString(2).replace("\\/", "/") + "\n"
+                    val (json, sha) = readFile(token, path)
+                    change(json)
+                    val newText = json.toString(2).replace("\\/", "/") + "\n"
                     val body = JSONObject().apply {
                         put("message", message)
                         put("content", Base64.encodeToString(newText.toByteArray(Charsets.UTF_8), Base64.NO_WRAP))
                         put("sha", sha)
                         put("branch", "main")
                     }
-                    request(API, "PUT", token, body.toString())
+                    request(BASE + path, "PUT", token, body.toString())
                     return@withContext
                 } catch (e: Exception) {
                     lastError = e

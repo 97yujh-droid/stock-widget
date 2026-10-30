@@ -1,0 +1,23 @@
+{
+  "stocks": [
+    {"name": "삼성전자", "code": "005930", "market": "KR"},
+    {"name": "SK하이닉스", "code": "000660", "market": "KR"},
+    {"name": "NAVER", "code": "035420", "market": "KR"},
+    {"name": "삼성SDI", "code": "006400", "market": "KR"},
+    {"name": "LG에너지솔루션", "code": "373220", "market": "KR"},
+    {"name": "삼성바이오로직스", "code": "207940", "market": "KR"},
+    {"name": "셀트리온", "code": "068270", "market": "KR"},
+    {"name": "현대차", "code": "005380", "market": "KR"},
+    {"name": "SK이노베이션", "code": "096770", "market": "KR"},
+    {"name": "엔비디아", "code": "NVDA", "market": "US", "naver": "NVDA.O"},
+    {"name": "TSMC", "code": "TSM", "market": "US"},
+    {"name": "테슬라", "code": "TSLA", "market": "US", "naver": "TSLA.O"},
+    {"name": "애플", "code": "AAPL", "market": "US", "naver": "AAPL.O"}
+  ],
+  "ai": {
+    "provider": "gemini",
+    "model": "gemini-2.5-flash"
+  },
+  "summary_times_kst": ["06:00", "08:00", "12:00", "15:40", "21:00"],
+  "news_per_stock": 8
+}

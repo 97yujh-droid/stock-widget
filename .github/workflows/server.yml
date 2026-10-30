@@ -1,0 +1,25 @@
+name: server
+
+# 3단계 서버. 지금은 수집 시험용(서버 파일이 바뀌면 실행, 직접 실행 가능).
+# 30분마다 자동 실행은 3-4단계에서 켠다.
+on:
+  push:
+    paths:
+      - "server/**"
+      - ".github/workflows/server.yml"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - run: python server/collect.py
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

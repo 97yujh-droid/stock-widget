@@ -17,6 +17,8 @@ data class AppSettings(
     val order: List<String> = emptyList(),   // 종목 코드 순서
     val hidden: Set<String> = emptySet(),    // 숨긴 종목 코드
     val holdings: Map<String, Holding> = emptyMap(),
+    val githubToken: String = "",            // 관심 종목 추가·삭제용 (휴대폰에만 저장)
+    val removed: Set<String> = emptySet(),   // 삭제했지만 아직 서버 결과에 남아 있는 종목
 )
 
 object SettingsStore {
@@ -46,6 +48,8 @@ object SettingsStore {
             order = (p.getString("order", "") ?: "").split(",").filter { it.isNotBlank() },
             hidden = (p.getString("hidden", "") ?: "").split(",").filter { it.isNotBlank() }.toSet(),
             holdings = holdings,
+            githubToken = p.getString("githubToken", "") ?: "",
+            removed = (p.getString("removed", "") ?: "").split(",").filter { it.isNotBlank() }.toSet(),
         )
     }
 
@@ -70,6 +74,8 @@ object SettingsStore {
             .putString("order", s.order.joinToString(","))
             .putString("hidden", s.hidden.joinToString(","))
             .putString("holdings", h.toString())
+            .putString("githubToken", s.githubToken)
+            .putString("removed", s.removed.joinToString(","))
             .apply()
     }
 }
@@ -80,7 +86,7 @@ fun AppSettings.arrange(stocks: List<Stock>, includeHidden: Boolean = false): Li
     return stocks.withIndex()
         .sortedBy { (i, s) -> idx[s.code] ?: (10000 + i) }
         .map { it.value }
-        .filter { includeHidden || it.code !in hidden }
+        .filter { it.code !in removed && (includeHidden || it.code !in hidden) }
 }
 
 /** 내 수익률(%)과 손익 금액. 수익률 보기가 꺼져 있거나 값이 없으면 null. */

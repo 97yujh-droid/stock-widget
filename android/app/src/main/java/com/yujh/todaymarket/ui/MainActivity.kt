@@ -15,6 +15,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yujh.todaymarket.data.MarketData
 import com.yujh.todaymarket.data.Repository
+import com.yujh.todaymarket.widget.TodayWidget
+import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.launch
 
 class MarketViewModel(app: Application) : AndroidViewModel(app) {
@@ -36,6 +38,8 @@ class MarketViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 data = Repository.fetch(getApplication())
                 error = null
+                // 앱에서 새로 받으면 홈 화면 위젯도 바로 다시 그린다
+                runCatching { TodayWidget().updateAll(getApplication()) }
             } catch (e: Exception) {
                 error = "새 데이터를 받지 못했어요. 마지막 값을 보여드려요. (${e.message ?: e.javaClass.simpleName})"
             } finally {

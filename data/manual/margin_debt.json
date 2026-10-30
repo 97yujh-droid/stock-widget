@@ -1,6 +1,6 @@
 {
   "_설명": "FINRA Margin Debt. 매달 중순 발표되면 아래 3개 값을 바꿔 주세요. 단위: 백만 달러.",
-  "month": null,
-  "balance": null,
-  "balance_year_ago": null
+  "month": "2026-09",
+  "balance": 1480054,
+  "balance_year_ago": 1126494
 }

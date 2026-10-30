@@ -179,11 +179,10 @@ private fun AiBox(text: String) {
 private fun ScoreRow(item: ScoreItem) {
     Column(Modifier.padding(vertical = 4.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(item.name, color = Palette.Fg, fontSize = 13.sp)
-            Text("  가중치 ${item.weight}", color = Palette.Faint, fontSize = 11.sp)
-            Spacer(Modifier.weight(1f))
-            Text(item.value ?: "-", color = Palette.Sub, fontSize = 11.sp)
+            Text(item.name, color = Palette.Fg, fontSize = 13.sp, modifier = Modifier.weight(1f, fill = false))
+            Text("  가중치 ${item.weight}", color = Palette.Faint, fontSize = 11.sp, maxLines = 1)
         }
+        Text(item.value ?: "-", color = Palette.Sub, fontSize = 11.sp, modifier = Modifier.padding(bottom = 2.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF262626))) {
                 if (item.score != null) {
@@ -219,15 +218,22 @@ private fun StockCard(s: Stock, settings: AppSettings) {
     var open by remember { mutableStateOf(false) }
     Card {
         Column(Modifier.clickable { open = !open }) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(s.name, color = Palette.Fg, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text("  ${s.code}", color = Palette.Faint, fontSize = 11.sp)
-                if (s.score != null && settings.showStockScore) {
-                    Text("  ${s.score}${s.icon ?: ""}", color = zoneColor(s.score), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(s.name, color = Palette.Fg, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(s.code, color = Palette.Faint, fontSize = 11.sp)
+                        if (s.score != null && settings.showStockScore) {
+                            Text("  ${s.score}${s.icon ?: ""}", color = zoneColor(s.score), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
-                Spacer(Modifier.weight(1f))
-                Text("${fmtPrice(s.price, s.currency)} ${fmtPct(s.changePct)}",
-                    color = changeColor(s.changePct), fontSize = 14.sp)
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(fmtPrice(s.price, s.currency), color = changeColor(s.changePct), fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text("${arrow(s.change)}${fmtChange(s.change, s.currency)}  ${fmtPct(s.changePct)}",
+                        color = changeColor(s.changePct), fontSize = 12.sp, maxLines = 1)
+                }
             }
             Text(s.issue ?: s.error ?: "-", color = Palette.Fg.copy(alpha = 0.85f), fontSize = 13.sp,
                 modifier = Modifier.padding(top = 4.dp))

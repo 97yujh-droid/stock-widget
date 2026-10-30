@@ -87,7 +87,7 @@ jobs:
       - name: 다음 실행 시작 (이미 다른 실행이 있으면 건너뜀)
         run: |
           others=$(gh run list --workflow server.yml --limit 20 --json databaseId,status \
-            --jq "[.[] | select(.status != \"completed\" and .databaseId != ${{ github.run_id }})] | length")
+            --jq "[.[] | select(.status != \"completed\" and .databaseId > ${{ github.run_id }})] | length")
           if [ "$others" -gt 0 ]; then
             echo "다른 실행이 이미 있어서 건너뛰어요 ($others 개)"
             exit 0

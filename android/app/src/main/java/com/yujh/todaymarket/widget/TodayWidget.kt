@@ -77,6 +77,24 @@ class TodayWidget : GlanceAppWidget() {
 
 class TodayWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = TodayWidget()
+
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        RefreshWorker.schedule(context)   // 첫 위젯을 놓으면 30분 자동 새로고침 시작
+    }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        RefreshWorker.cancel(context)     // 마지막 위젯을 지우면 멈춤
+    }
+}
+
+/** 결과 파일이 2시간 넘게 지났으면 true (서버나 인터넷 문제로 못 받은 경우) */
+fun isOld(generatedAt: String?): Boolean = try {
+    val t = java.time.OffsetDateTime.parse(generatedAt)
+    java.time.Duration.between(t, java.time.OffsetDateTime.now()).toMinutes() > 120
+} catch (e: Exception) {
+    false
 }
 
 /** ↻ 버튼: 새로 받고 위젯 다시 그리기 */
@@ -156,7 +174,9 @@ private fun WidgetBody(data: MarketData?, st: AppSettings) {
 private fun Header(data: MarketData?, f: Fonts) {
     Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text("오늘의 시장", style = f.s(Palette.Fg, 17f, bold = true), modifier = GlanceModifier.defaultWeight())
-        Text(fmtTime(data?.generatedAt), style = f.s(Color(0xFFA8ADB3), 13f))
+        val old = data != null && isOld(data.generatedAt)
+        if (old) Text("지난 데이터 ", style = f.s(Palette.Stale, 11f, bold = true))
+        Text(fmtTime(data?.generatedAt), style = f.s(if (old) Palette.Stale else Color(0xFFA8ADB3), 13f))
         Text("  ↻", style = f.s(Palette.Fg, 18f), modifier = GlanceModifier.clickable(actionRunCallback<RefreshAction>()))
     }
 }

@@ -23,6 +23,7 @@ import com.yujh.todaymarket.data.AppSettings
 import com.yujh.todaymarket.data.MarketData
 import com.yujh.todaymarket.data.Repository
 import com.yujh.todaymarket.data.SettingsStore
+import com.yujh.todaymarket.widget.RefreshWorker
 import com.yujh.todaymarket.widget.TodayWidget
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -77,6 +78,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        RefreshWorker.schedule(this)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(background = Palette.Bg, surface = Palette.Bg)) {
                 val vm: MarketViewModel = viewModel()

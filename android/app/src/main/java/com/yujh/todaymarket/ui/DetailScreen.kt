@@ -37,6 +37,7 @@ import com.yujh.todaymarket.data.AppSettings
 import com.yujh.todaymarket.data.Indicator
 import com.yujh.todaymarket.data.arrange
 import com.yujh.todaymarket.data.returnOf
+import com.yujh.todaymarket.widget.isOld
 import com.yujh.todaymarket.data.MarketData
 import com.yujh.todaymarket.data.ScoreItem
 import com.yujh.todaymarket.data.Stock
@@ -82,8 +83,8 @@ private fun TopBar(data: MarketData?, loading: Boolean, onRefresh: () -> Unit, o
         Text(data?.title ?: "오늘의 시장", color = Palette.Fg, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
         Text(
-            if (loading) "받는 중…" else "업데이트 ${fmtTime(data?.generatedAt)}",
-            color = Palette.Sub, fontSize = 12.sp,
+            if (loading) "받는 중…" else (if (isOld(data?.generatedAt)) "지난 데이터 · " else "업데이트 ") + fmtTime(data?.generatedAt),
+            color = if (isOld(data?.generatedAt)) Palette.Stale else Palette.Sub, fontSize = 12.sp,
         )
         Text(
             "  ↻", color = Palette.Fg, fontSize = 22.sp,

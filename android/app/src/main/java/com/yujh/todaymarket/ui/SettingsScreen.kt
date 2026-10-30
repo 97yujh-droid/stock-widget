@@ -106,6 +106,7 @@ fun SettingsScreen(
                 Text("새 데이터: 서버가 30분마다 만들고, 위젯은 25분이 지나면 새로 받아요.", color = Palette.Sub, fontSize = 12.sp)
                 Text("시황 요약: 하루 5번 (06·08·12·15:40·21시)", color = Palette.Sub, fontSize = 12.sp)
                 Text("상승 색: 빨강 (한국식) · 하락 색: 파랑", color = Palette.Sub, fontSize = 12.sp)
+                Text("앱 버전: ${com.yujh.todaymarket.BuildConfig.VERSION_NAME}", color = Palette.Sub, fontSize = 12.sp)
             }
         }
         item { Spacer(Modifier.padding(bottom = 30.dp)) }

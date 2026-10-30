@@ -1,0 +1,5 @@
+data/collected.json
+__pycache__/
+data/summary.json
+data/latest.json
+public/

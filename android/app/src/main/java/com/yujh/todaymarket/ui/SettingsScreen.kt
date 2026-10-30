@@ -27,6 +27,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.yujh.todaymarket.data.SearchItem
+import com.yujh.todaymarket.data.WatchlistApi
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,10 +93,11 @@ fun SettingsScreen(
             }
         }
 
+        item { WatchlistEditor(stocks, settings, onChange) }
         item {
             Column {
-                Text("관심 종목 (순서 바꾸기·숨기기)", color = Palette.Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text("종목 추가와 삭제는 서버 설정에서 해요. Claude에게 말씀해 주세요.", color = Palette.Sub, fontSize = 12.sp)
+                Text("관심 종목 (순서·숨기기·삭제)", color = Palette.Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("숨기기는 이 휴대폰에서만 안 보이게, 삭제는 서버 목록에서 빼요.", color = Palette.Sub, fontSize = 12.sp)
             }
         }
         if (stocks.isEmpty()) item { Text("데이터를 받은 뒤에 종목이 나와요.", color = Palette.Sub, fontSize = 13.sp) }
@@ -150,6 +156,9 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun StockSettingRow(s: Stock, settings: AppSettings, codes: List<String>, onChange: (AppSettings) -> Unit) {
     val hidden = s.code in settings.hidden
+    val scope = rememberCoroutineScope()
+    var confirm by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf<String?>(null) }
     fun move(delta: Int) {
         val list = codes.toMutableList()
         val i = list.indexOf(s.code)
@@ -170,7 +179,24 @@ private fun StockSettingRow(s: Stock, settings: AppSettings, codes: List<String>
             SmallButton(if (hidden) "보이기" else "숨기기") {
                 onChange(settings.copy(hidden = if (hidden) settings.hidden - s.code else settings.hidden + s.code))
             }
+            if (settings.githubToken.isNotBlank()) {
+                SmallButton(if (confirm) "정말 삭제?" else "삭제") {
+                    if (!confirm) { confirm = true; return@SmallButton }
+                    confirm = false
+                    status = "삭제하는 중…"
+                    scope.launch {
+                        status = try {
+                            WatchlistApi.remove(settings.githubToken, s.code, s.name)
+                            onChange(settings.copy(removed = settings.removed + s.code))
+                            null
+                        } catch (e: Exception) {
+                            "삭제하지 못했어요: ${e.message}"
+                        }
+                    }
+                }
+            }
         }
+        status?.let { Text(it, color = Palette.Sub, fontSize = 12.sp) }
         if (settings.showReturns) {
             val h = settings.holdings[s.code] ?: Holding(null, null)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -209,4 +235,100 @@ private fun NumberField(label: String, value: Double?, modifier: Modifier, onVal
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         modifier = modifier,
     )
+}
+
+
+// ---------------- 관심 종목 추가 (GitHub 연결) ----------------
+
+@Composable
+private fun WatchlistEditor(stocks: List<Stock>, settings: AppSettings, onChange: (AppSettings) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var tokenInput by remember { mutableStateOf("") }
+    var editingToken by remember { mutableStateOf(settings.githubToken.isBlank()) }
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<SearchItem>>(emptyList()) }
+    var status by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    val have = stocks.map { it.code }.toSet()
+
+    Group("관심 종목 추가") {
+        if (editingToken) {
+            Text("종목을 추가·삭제하려면 GitHub 열쇠를 한 번 넣어 주세요. 열쇠는 이 휴대폰에만 저장돼요.",
+                color = Palette.Sub, fontSize = 12.sp)
+            OutlinedTextField(
+                value = tokenInput, onValueChange = { tokenInput = it.trim() },
+                label = { Text("GitHub 열쇠 (github_pat_로 시작)", fontSize = 12.sp) },
+                singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            SmallButton(if (busy) "확인 중…" else "연결하기") {
+                if (busy || tokenInput.isBlank()) return@SmallButton
+                busy = true
+                scope.launch {
+                    val err = WatchlistApi.verify(tokenInput)
+                    busy = false
+                    if (err == null) {
+                        onChange(settings.copy(githubToken = tokenInput))
+                        editingToken = false
+                        tokenInput = ""
+                        status = "연결됐어요 ✓"
+                    } else {
+                        status = err
+                    }
+                }
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("GitHub 연결됨 ✓", color = Palette.Accent, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                SmallButton("열쇠 바꾸기") { editingToken = true }
+                SmallButton("연결 끊기") { onChange(settings.copy(githubToken = "")); editingToken = true }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = query, onValueChange = { query = it },
+                    label = { Text("종목 이름이나 코드 (예: 엔비디아, 005930)", fontSize = 12.sp) },
+                    singleLine = true, modifier = Modifier.weight(1f),
+                )
+                SmallButton("검색") {
+                    if (query.isBlank()) return@SmallButton
+                    status = "찾는 중…"
+                    scope.launch {
+                        try {
+                            results = WatchlistApi.search(query)
+                            status = if (results.isEmpty()) "찾는 종목이 없어요. 한국·미국 종목만 돼요." else null
+                        } catch (e: Exception) {
+                            status = "검색하지 못했어요: ${e.message}"
+                        }
+                    }
+                }
+            }
+            results.forEach { r ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text(r.name, color = Palette.Fg, fontSize = 14.sp)
+                        Text("${r.code} · ${r.exchange}", color = Palette.Sub, fontSize = 11.sp)
+                    }
+                    if (r.code in have && r.code !in settings.removed) {
+                        Text("추가됨", color = Palette.Faint, fontSize = 12.sp)
+                    } else {
+                        SmallButton("추가") {
+                            status = "${r.name} 추가하는 중…"
+                            scope.launch {
+                                status = try {
+                                    WatchlistApi.add(settings.githubToken, r)
+                                    onChange(settings.copy(removed = settings.removed - r.code))
+                                    results = emptyList()
+                                    query = ""
+                                    "${r.name}을(를) 추가했어요. 서버가 바로 새로 만들어서 1~2분 뒤 ↻ 하면 나와요."
+                                } catch (e: Exception) {
+                                    "추가하지 못했어요: ${e.message}"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        status?.let { Text(it, color = Palette.Sub, fontSize = 12.sp) }
+    }
 }

@@ -73,11 +73,11 @@ TREND_PTS = [(-10, 0), (-3, 25), (0, 50), (3, 75), (8, 100)]
 
 def market_score(data, series):
     ind = data["indicators"]
-    sp, ks = ok(series["spx"]), ok(series["kospi"])
+    sp, nq = ok(series["spx"]), ok(series.get("nasdaq"))
     dxy, krw = ok(series["dxy"]), ok(series["usdkrw"])
     t10, hy, curve = ok(series["us10y"]), ok(series["hy"]), ok(series["t10y2y"])
 
-    sp_d, ks_d = pct_vs_ma(sp, 200), pct_vs_ma(ks, 200)
+    sp_d, nq_d = pct_vs_ma(sp, 200), pct_vs_ma(nq, 200)
     vix = ind["vix"].get("price")
     hy_now = ind["hy_spread"].get("price") or (hy[-1][1] if hy else None)
     hy_chg = chg_1m(hy, pct=False)
@@ -96,9 +96,9 @@ def market_score(data, series):
         return None if v is None else fmt.format(v)
 
     items = [
-        {"key": "trend", "name": "추세 (S&P500·코스피 200일 평균)", "weight": 20,
-         "score": avg(interp(sp_d, TREND_PTS), interp(ks_d, TREND_PTS)),
-         "value": f"S&P {f(sp_d, '{:+.1f}%') or '-'}, 코스피 {f(ks_d, '{:+.1f}%') or '-'} (200일 평균 대비)"},
+        {"key": "trend", "name": "추세 (S&P500·나스닥 200일 평균)", "weight": 25,
+         "score": avg(interp(sp_d, TREND_PTS), interp(nq_d, TREND_PTS)),
+         "value": f"S&P {f(sp_d, '{:+.1f}%') or '-'}, 나스닥 {f(nq_d, '{:+.1f}%') or '-'} (200일 평균 대비)"},
         {"key": "vix", "name": "VIX", "weight": 15,
          "score": interp(vix, [(12, 100), (15, 90), (20, 65), (25, 40), (30, 20), (40, 0)]),
          "value": f(vix, "{:.2f}")},
@@ -114,7 +114,7 @@ def market_score(data, series):
         {"key": "dxy", "name": "달러지수 1달 변화", "weight": 10,
          "score": interp(dxy_c, [(-3, 100), (-1, 75), (0, 60), (1, 45), (3, 15)]),
          "value": f(dxy_c, "{:+.1f}%")},
-        {"key": "usdkrw", "name": "원/달러 1달 변화", "weight": 10,
+        {"key": "usdkrw", "name": "원/달러 1달 변화", "weight": 5,
          "score": interp(krw_c, [(-3, 100), (-1, 75), (0, 60), (1, 45), (3, 15)]),
          "value": None if krw_c is None else f"{krw_c:+.1f}% ({'원화 강세' if krw_c < 0 else '원화 약세'})"},
         {"key": "curve", "name": "장단기 금리차", "weight": 5,

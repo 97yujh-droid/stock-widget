@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -123,7 +124,11 @@ def cnbc(symbol):
         try:
             as_of = iso(datetime.strptime(t, "%Y-%m-%dT%H:%M:%S.%f%z"))
         except ValueError:
-            as_of = t
+            try:
+                d = datetime.fromisoformat(t[:19]) if "T" in t else datetime.strptime(t[:10], "%Y-%m-%d").replace(hour=16)
+                as_of = iso(d.replace(tzinfo=ZoneInfo("America/New_York")))
+            except ValueError:
+                as_of = t
     return {
         "price": num(x.get("last")),
         "change": num(x.get("change")),

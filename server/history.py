@@ -201,6 +201,7 @@ def market_series():
     return {
         "kospi": first_ok(lambda: naver_fchart("KOSPI")),
         "spx": first_ok(lambda: cnbc_bars(".SPX"), lambda: fred_series("SP500")),
+        "nasdaq": first_ok(lambda: cnbc_bars(".IXIC"), lambda: fred_series("NASDAQCOM")),
         "dxy": first_ok(lambda: cnbc_bars(".DXY"), lambda: fred_series("DTWEXBGS")),
         "usdkrw": first_ok(lambda: cnbc_bars("KRW="), lambda: fred_series("DEXKOUS")),
         "us10y": first_ok(lambda: fred_series("DGS10")),

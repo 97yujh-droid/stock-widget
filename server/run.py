@@ -10,13 +10,14 @@ from collect import ROOT, collect, iso, now_kst
 from history import history_for, market_series, valuation_for
 from scoring import market_score, stock_score
 from summarize import explain_scores, summarize_issues, summarize_market
+from publish import build, is_summary_time, load_previous, save
 
 
 def main():
     config = json.loads((ROOT / "server/config.json").read_text(encoding="utf-8"))
     t0 = time.time()
     data = collect(config)
-    rep = [f"## 3-4 점수 계산 결과 ({iso(now_kst())})", ""]
+    rep = [f"## 서버 실행 결과 ({iso(now_kst())})", ""]
 
     # AI 이슈·시황
     try:
@@ -26,11 +27,16 @@ def main():
     except Exception as e:
         issues = {}
         rep.append(f"❌ 종목 이슈 실패: {e}")
-    try:
-        market_lines, _ = summarize_market(config, data, issues)
-    except Exception as e:
-        market_lines = []
-        rep.append(f"❌ 시황 실패: {e}")
+    prev = load_previous(config)
+    force = os.environ.get("FORCE_SUMMARY", "").lower() == "true"
+    market_lines = []
+    if force or is_summary_time(config) or not (prev.get("market_summary") or {}).get("lines"):
+        try:
+            market_lines, _ = summarize_market(config, data, issues)
+        except Exception as e:
+            rep.append(f"❌ 시황 실패: {e}")
+    else:
+        rep.append("ℹ️ 시황은 정해진 시각이 아니라 지난번 요약을 그대로 써요.")
 
     # 점수
     series = market_series()
@@ -54,6 +60,12 @@ def main():
     except Exception as e:
         mcomment, scomments = "", {}
         rep.append(f"❌ 점수 설명 실패: {e}")
+
+    # ---- 결과 파일 ----
+    result = build(config, data, issues, market_lines, mscore, mcomment, sscores, scomments, prev,
+                   meta={"took_sec": round(time.time() - t0, 1), "ai_model": config["ai"]["model"]})
+    size = save(result)
+    rep.append(f"📦 결과 파일 public/latest.json 저장 ({size / 1024:.1f}KB)")
 
     # ---- 보고서 ----
     rep += ["", f"### 시장 점수: **{mscore['score']}점 {mscore.get('icon', '')} {mscore.get('name', '')}**",
@@ -81,7 +93,12 @@ def main():
         else:
             rep.append(f"  - 가치 지표 실패: {v.get('error', '')[:120]}")
     rep += ["", "과거 주가 점검:"] + [f"- {d}" for d in diag]
-    rep += ["</details>", "", "**오늘 시황**"] + [f"- {l}" for l in market_lines]
+    rep += ["</details>", "", "**오늘 시황**"] + [f"- {l}" for l in result["market_summary"].get("lines", [])]
+    rep += ["", "<details><summary>결과 파일 미리보기 (앞부분)</summary>", "", "```json",
+            json.dumps({k: result[k] for k in ("version", "title", "generated_at", "market_summary")},
+                       ensure_ascii=False, indent=1),
+            json.dumps(result["stocks"][0], ensure_ascii=False, indent=1)[:1500],
+            json.dumps(result["indicators"], ensure_ascii=False, indent=1)[:2500], "```", "</details>"]
     rep.append(f"\n전체 걸린 시간: {time.time() - t0:.1f}초")
 
     text = "\n".join(rep)

@@ -126,8 +126,10 @@ object WatchlistApi {
             requestMethod = method
             connectTimeout = 15000
             readTimeout = 20000
-            setRequestProperty("Accept", "application/vnd.github+json")
-            setRequestProperty("User-Agent", "TodayMarketApp")
+            // GitHub 전용 머리글은 GitHub 에만 보낸다 (네이버에 보내면 404로 거절됨)
+            val github = url.startsWith("https://api.github.com")
+            setRequestProperty("Accept", if (github) "application/vnd.github+json" else "*/*")
+            setRequestProperty("User-Agent", if (github) "TodayMarketApp" else "Mozilla/5.0 (Linux; Android 14) TodayMarketApp")
             if (token != null) setRequestProperty("Authorization", "Bearer $token")
             if (body != null) {
                 doOutput = true

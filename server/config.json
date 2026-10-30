@@ -74,6 +74,12 @@
       "code": "INTC",
       "market": "US",
       "naver": "INTC.O"
+    },
+    {
+      "name": "알파벳 Class A",
+      "code": "GOOGL",
+      "market": "US",
+      "naver": "GOOGL.O"
     }
   ],
   "ai": {

@@ -8,6 +8,8 @@ import json
 import os
 import time
 
+from datetime import datetime, timedelta
+
 from collect import ROOT, S, collect, now_kst, iso
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -185,29 +187,70 @@ MARKET_SCHEMA = {
 }
 
 
+def _val(v):
+    if v.get("price") is None:
+        return None
+    p = v["price"]
+    txt = f"{p:,.2f}" if isinstance(p, float) else str(p)
+    if v.get("unit"):
+        txt += v["unit"]
+    if v.get("label"):
+        txt += f" ({v['label']})"
+    if v.get("change_pct") is not None:
+        txt += f", 전일 대비 {v['change_pct']:+.2f}%"
+    elif v.get("change") is not None:
+        txt += f", 변화 {v['change']:+}"
+    return f"{txt}, 기준 {v.get('as_of')}"
+
+
 def market_prompt(data, issues):
-    ind = []
-    for v in data["indicators"].values():
-        if v.get("price") is None:
-            continue
-        chg = f" ({v['change_pct']:+.2f}%)" if v.get("change_pct") is not None else ""
-        ind.append(f"- {v['name']}: {v['price']}{(' ' + v['label']) if v.get('label') else ''}{chg}, 기준 {v.get('as_of')}")
+    ind = [f"- {v['name']}: {_val(v)}" for v in data["indicators"].values() if _val(v)]
+    mon = [f"- {v['name']}: {_val(v)}" for v in data.get("monitors", {}).values() if _val(v)]
     st = [f"- {s['name']}: {fmt_quote(s['quote'])}, 이슈: {issues.get(s['name'], {}).get('issue', '')}"
           for s in data["stocks"]]
     news = [f"- {n['title']} ({n['source']}, {n['time']})" for n in data.get("market_news", [])[:16]]
-    return f"""너는 한국 개인투자자를 위한 주식 위젯의 편집자야. 지금은 한국 시각 {now_kst():%m월 %d일 %H:%M}이야.
-아래 자료로 '오늘 시황'을 3~4줄로 요약해 줘.
+    enews = [f"- {n['title']} ({n['source']}, {n['time']})" for n in data.get("econ_news", [])[:15]]
+    now = now_kst()
+    cal = []
+    for e in data.get("calendar", []):
+        try:
+            t = datetime.fromisoformat(e["time"])
+        except Exception:
+            continue
+        if now - timedelta(hours=36) <= t <= now + timedelta(hours=30):
+            when = "발표됨" if t <= now else "예정"
+            cal.append(f"- [{when}] {t:%m/%d %H:%M} {e['country']} {e['title']} "
+                       f"(예상 {e.get('forecast') or '-'}, 이전 {e.get('previous') or '-'}, 실제 {e.get('actual') or '미확인'})")
+    return f"""너는 한국 개인투자자를 위한 주식 위젯의 편집자야. 지금은 한국 시각 {now:%m월 %d일 %H:%M}이야.
+아래 자료로 '오늘 시황'을 4~5줄로 요약해 줘. 사용자는 미국 주식을 주로 해.
+
+줄마다 다루는 내용 (해당 내용이 없으면 그 줄은 빼):
+1. 미국장: 지수 등락률(숫자)과 가장 큰 이유
+2. 국내장: 코스피·코스닥 등락률과 이유, 외국인 순매수 금액
+3. 경제 지표: 그날 발표된 CPI·PPI·고용·FOMC 같은 지표를 '실제치(예상치)'로 인용하고 시장 반응을 써.
+   발표된 지표가 없으면 금리·유가·VIX·MOVE 같은 시장 지표를 숫자로 인용해.
+4. 주요 종목 이벤트: 관심 종목의 실적·계약·인사 같은 큰 소식 1~2개
+5. 다음 24시간 안에 '예정'된 중요한 지표가 있으면 "오늘 밤 ○○ 발표 예정(예상 ○○)" 처럼 한 줄.
 
 규칙:
-- 한 줄에 40자 이내, 초등학생도 알 수 있는 쉬운 말, "~했어요/~이에요" 말투.
-- 가장 최근에 끝났거나 진행 중인 국내장과 미국장 흐름을 먼저, 그다음 환율·금리·불안 지표 순서.
-- 자료에 없는 숫자나 사실은 쓰지 마.
-
-[지표]
-{chr(10).join(ind)}
+- 한 줄에 55자 이내, 쉬운 말, "~했어요/~이에요" 말투. 숫자는 자료 그대로 써.
+- 자료에 없는 숫자나 사실은 절대 쓰지 마. 지표의 실제치가 '미확인'이면 뉴스 제목에서 찾고, 없으면 실제치를 쓰지 마.
+- 사라/팔라는 말은 하지 마.
 
 [주요 지수]
 {market_context(data).split("[시장 뉴스]")[0]}
+[점수 지표]
+{chr(10).join(ind)}
+
+[모니터링 지표]
+{chr(10).join(mon)}
+
+[경제 지표 일정 (지난 36시간 ~ 앞으로 30시간, 한국 시각)]
+{chr(10).join(cal) or "- 없음"}
+
+[경제 지표 뉴스]
+{chr(10).join(enews) or "- 없음"}
+
 [관심 종목]
 {chr(10).join(st)}
 
@@ -218,7 +261,7 @@ def market_prompt(data, issues):
 
 def summarize_market(config, data, issues):
     out, meta = call_ai(config, market_prompt(data, issues), MARKET_SCHEMA)
-    return [l.strip() for l in out.get("lines", []) if l.strip()][:4], meta
+    return [l.strip() for l in out.get("lines", []) if l.strip()][:5], meta
 
 
 # ---------------- 점수 설명 ----------------

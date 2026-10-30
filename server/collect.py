@@ -208,6 +208,53 @@ def google_news(query, limit):
     return items
 
 
+def naver_foreign_flow():
+    """코스피 투자자별 순매수(억원). 외국인 중심."""
+    j = get("https://m.stock.naver.com/api/index/KOSPI/trend").json()
+    if isinstance(j, list):
+        j = j[0]
+    d = j.get("bizdate", "")
+    return {"price": num(j.get("foreignValue")), "unit": "억원",
+            "label": f"개인 {j.get('personalValue')} · 기관 {j.get('institutionalValue')}",
+            "as_of": f"{d[:4]}-{d[4:6]}-{d[6:8]} (국내)" if len(d) == 8 else None, "source": "네이버"}
+
+
+def coingecko():
+    j = get("https://api.coingecko.com/api/v3/simple/price",
+            params={"ids": "bitcoin,ethereum", "vs_currencies": "usd", "include_24hr_change": "true"}).json()
+    now = iso(now_kst())
+    return {k: {"price": j[k]["usd"], "change_pct": round(j[k].get("usd_24h_change") or 0, 2),
+                "as_of": now, "source": "CoinGecko", "label": "24시간 변화"} for k in ("bitcoin", "ethereum")}
+
+
+def kraken():
+    j = get("https://api.kraken.com/0/public/Ticker", params={"pair": "XBTUSD,ETHUSD"}).json()["result"]
+    out, now = {}, iso(now_kst())
+    for pair, key in (("XXBTZUSD", "bitcoin"), ("XETHZUSD", "ethereum")):
+        t = j[pair]
+        last, opn = float(t["c"][0]), float(t["o"])
+        out[key] = {"price": last, "change_pct": round((last / opn - 1) * 100, 2), "as_of": now,
+                    "source": "Kraken", "label": "오늘 0시(UTC) 대비"}
+    return out
+
+
+def econ_calendar():
+    """이번 주 미국·한국 주요 경제 지표 일정 (예상치·이전치·실제치)."""
+    j = get("https://nfs.faireconomy.media/ff_calendar_thisweek.json").json()
+    out = []
+    for e in j:
+        if e.get("country") not in ("USD", "KRW") or e.get("impact") not in ("High", "Medium"):
+            continue
+        try:
+            t = iso(datetime.fromisoformat(e["date"]))
+        except Exception:
+            t = e.get("date")
+        out.append({"title": e.get("title"), "country": e.get("country"), "time": t,
+                    "impact": e.get("impact"), "forecast": e.get("forecast") or None,
+                    "previous": e.get("previous") or None, "actual": e.get("actual") or None})
+    return out
+
+
 # ---------------- 전체 수집 ----------------
 
 INDICATORS = [
@@ -216,6 +263,17 @@ INDICATORS = [
     ("dxy", "달러지수", ".DXY", None),
     ("us10y", "미국 10년물 금리", "US10Y", lambda: fred("DGS10")),
     ("vix", "VIX", ".VIX", cboe_vix),
+    ("move", "MOVE (채권 불안)", ".MOVE", None),
+]
+
+# 점수에는 안 쓰고 화면에서 지켜보기만 하는 지표 (CNBC)
+MONITORS = [
+    ("wti", "WTI 유가", "@CL.1"),
+    ("nq_fut", "나스닥100 선물", "@ND.1"),
+    ("sox", "반도체지수 SOX", ".SOX"),
+    ("usdjpy", "달러/엔", "JPY="),
+    ("us2y", "미국 2년물 금리", "US2Y"),
+    ("gold", "금", "@GC.1"),
 ]
 
 
@@ -224,7 +282,7 @@ def collect(config):
     stocks_cfg = config["stocks"]
     us_syms = [s["code"] for s in stocks_cfg if s["market"] == "US"]
     try:
-        cnbc_all(us_syms + [i[2] for i in INDICATORS] + [".SPX", ".IXIC"])
+        cnbc_all(us_syms + [i[2] for i in INDICATORS] + [m[2] for m in MONITORS] + [".SPX", ".IXIC"])
     except Exception as e:
         print("CNBC 묶음 요청 실패:", e)
 
@@ -249,6 +307,25 @@ def collect(config):
     ind["fear_greed"] = {"name": "공포탐욕지수", **first_ok(cnn_fear_greed)}
     ind["margin_debt"] = {"name": "Margin Debt (전년비 %)", **first_ok(margin_debt)}
 
+    mon = {}
+    for key, name, sym in MONITORS:
+        mon[key] = {"name": name, **first_ok(lambda s=sym: cnbc(s))}
+    mon["bei10"] = {"name": "기대 인플레이션 (10년)", **first_ok(lambda: fred("T10YIE"))}
+    mon["kospi_foreign"] = {"name": "외국인 순매수 (코스피)", **first_ok(naver_foreign_flow)}
+    crypto = first_ok(coingecko, kraken)
+    for key, name in (("bitcoin", "비트코인"), ("ethereum", "이더리움")):
+        mon[key] = {"name": name, **(crypto.get(key, {"error": "없음"}) if "error" not in crypto else crypto)}
+
+    cal = first_ok(econ_calendar)
+    econ_news = []
+    seen = set()
+    for q in config.get("econ_news_queries", []):
+        r = first_ok(lambda q=q: google_news(q, 5))
+        for n in r if isinstance(r, list) else []:
+            if n["title"] not in seen:
+                seen.add(n["title"])
+                econ_news.append(n)
+
     markets = {
         "kospi": {"name": "코스피", **first_ok(lambda: naver_index("KOSPI"))},
         "kosdaq": {"name": "코스닥", **first_ok(lambda: naver_index("KOSDAQ"))},
@@ -261,7 +338,9 @@ def collect(config):
         if isinstance(r, list):
             market_news += r
 
-    return {"collected_at": iso(t0), "stocks": stocks, "indicators": ind, "markets": markets, "market_news": market_news,
+    return {"collected_at": iso(t0), "stocks": stocks, "indicators": ind, "monitors": mon,
+            "calendar": cal if isinstance(cal, list) else [], "econ_news": econ_news,
+            "markets": markets, "market_news": market_news,
             "took_sec": round((now_kst() - t0).total_seconds(), 1)}
 
 

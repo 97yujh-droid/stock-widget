@@ -2,8 +2,10 @@ name: server
 
 # 30분마다 데이터 수집 → AI 요약 → 점수 → 결과 파일을 GitHub Pages 에 올린다.
 # 앱은 https://97yujh-droid.github.io/stock-widget/latest.json 만 읽는다.
-# (매시 10분·40분: 정각 혼잡을 피하고, 15:40 시황 시각에 맞춤)
-# 참고: 예약이 멈추면 이 파일을 한 번 바꿔 main 에 올리면 GitHub이 예약을 다시 등록한다.
+#
+# 자동 실행 방식: GitHub 예약(schedule)이 이 저장소에서 실행되지 않아서,
+# 한 번 실행이 끝나면 다음 시각(매시 10분·40분)까지 기다렸다가 스스로 다음 실행을 시작한다.
+# 사슬이 끊기면: 직접 실행(Run workflow), 서버 파일 수정, 앱에서 종목 추가 중 하나로 다시 이어진다.
 on:
   schedule:
     - cron: "10,40 * * * *"
@@ -13,20 +15,25 @@ on:
       - "server/**"
       - ".github/workflows/server.yml"
   workflow_dispatch:
+    inputs:
+      force_summary:
+        description: "시황 요약을 지금 새로 만들기"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
   pages: write
   id-token: write
-
-concurrency:
-  group: server
-  cancel-in-progress: false
+  actions: write
 
 jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    concurrency:
+      group: server-run
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -40,7 +47,8 @@ jobs:
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          FORCE_SUMMARY: ${{ github.event_name != 'schedule' }}
+          # 서버 파일을 고쳤거나 직접 요청했을 때만 시황을 바로 새로 만든다 (평소엔 하루 5번)
+          FORCE_SUMMARY: ${{ github.event_name == 'push' || inputs.force_summary == true }}
       - name: 시안 그림도 함께 올리기
         run: cp docs/widget-mockup.html public/mockup.html
       - uses: actions/configure-pages@v5
@@ -49,3 +57,39 @@ jobs:
           path: public
       - id: deploy
         uses: actions/deploy-pages@v4
+
+  # 다음 실행 예약: 실패해도(always) 사슬이 이어지게
+  next:
+    needs: run
+    if: always() && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: 다음 시각(매시 10분·40분)까지 기다리기
+        run: |
+          now=$(date -u +%s)
+          # 다음 :10 또는 :40 (최소 5분 뒤)
+          next=$(python3 -c "
+          import time,datetime as d
+          n=d.datetime.utcnow()
+          for add in range(0,120):
+              t=(n+d.timedelta(minutes=add)).replace(second=0,microsecond=0)
+              if t.minute in (10,40) and (t-n).total_seconds()>=300:
+                  print(int(t.replace(tzinfo=d.timezone.utc).timestamp())); break
+          ")
+          wait=$(( next - now ))
+          echo "다음 실행까지 ${wait}초 기다려요"
+          sleep $wait
+      - name: 다음 실행 시작 (이미 다른 실행이 있으면 건너뜀)
+        run: |
+          others=$(gh run list --workflow server.yml --limit 20 --json databaseId,status \
+            --jq "[.[] | select(.status != \"completed\" and .databaseId != ${{ github.run_id }})] | length")
+          if [ "$others" -gt 0 ]; then
+            echo "다른 실행이 이미 있어서 건너뛰어요 ($others 개)"
+            exit 0
+          fi
+          gh workflow run server.yml --ref main
+          echo "다음 실행을 시작했어요"

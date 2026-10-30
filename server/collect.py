@@ -78,6 +78,18 @@ def naver_kr(code):
     }
 
 
+def naver_index(code):
+    j = get(f"https://m.stock.naver.com/api/index/{code}/basic").json()
+    return {
+        "price": num(j.get("closePrice")),
+        "change": num(j.get("compareToPreviousClosePrice")),
+        "change_pct": num(j.get("fluctuationsRatio")),
+        "as_of": iso(datetime.fromisoformat(j["localTradedAt"])) if j.get("localTradedAt") else None,
+        "market_status": j.get("marketStatus"),
+        "source": "네이버",
+    }
+
+
 def naver_world(code):
     j = get(f"https://api.stock.naver.com/stock/{code}/basic").json()
     return {
@@ -209,7 +221,7 @@ def collect(config):
     stocks_cfg = config["stocks"]
     us_syms = [s["code"] for s in stocks_cfg if s["market"] == "US"]
     try:
-        cnbc_all(us_syms + [i[2] for i in INDICATORS])
+        cnbc_all(us_syms + [i[2] for i in INDICATORS] + [".SPX", ".IXIC"])
     except Exception as e:
         print("CNBC 묶음 요청 실패:", e)
 
@@ -234,13 +246,19 @@ def collect(config):
     ind["fear_greed"] = {"name": "공포탐욕지수", **first_ok(cnn_fear_greed)}
     ind["margin_debt"] = {"name": "Margin Debt (전년비 %)", **first_ok(margin_debt)}
 
+    markets = {
+        "kospi": {"name": "코스피", **first_ok(lambda: naver_index("KOSPI"))},
+        "kosdaq": {"name": "코스닥", **first_ok(lambda: naver_index("KOSDAQ"))},
+        "spx": {"name": "S&P500", **first_ok(lambda: cnbc(".SPX"))},
+        "nasdaq": {"name": "나스닥", **first_ok(lambda: cnbc(".IXIC"))},
+    }
     market_news = []
     for q in config.get("market_news_queries", []):
         r = first_ok(lambda q=q: google_news(q, 8))
         if isinstance(r, list):
             market_news += r
 
-    return {"collected_at": iso(t0), "stocks": stocks, "indicators": ind, "market_news": market_news,
+    return {"collected_at": iso(t0), "stocks": stocks, "indicators": ind, "markets": markets, "market_news": market_news,
             "took_sec": round((now_kst() - t0).total_seconds(), 1)}
 
 

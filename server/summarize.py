@@ -27,7 +27,7 @@ def call_gemini(model, prompt, schema):
                              "responseSchema": schema},
     }
     # 열쇠는 주소가 아니라 머리글(header)에 넣어 기록에 남지 않게 한다
-    r = S.post(GEMINI_URL.format(model=model), json=body, timeout=90,
+    r = S.post(GEMINI_URL.format(model=model), json=body, timeout=60,
                headers={"x-goog-api-key": key})
     if r.status_code != 200:
         raise AIError(f"{model} {r.status_code}: {r.text[:200]}")
@@ -49,7 +49,7 @@ def call_ai(config, prompt, schema):
         for attempt in range(2):
             try:
                 out, usage = call_gemini(m, prompt, schema)
-                return out, {"model": m, "usage": usage}
+                return out, {"model": m, "usage": usage, "skipped": errors}
             except AIError as e:
                 errors.append(str(e))
                 if " 429" in str(e) or " 5" in str(e)[:len(m) + 3]:
@@ -86,6 +86,16 @@ def fmt_quote(q):
     return f"{q['change_pct']:+.2f}% (기준 {q.get('as_of')})"
 
 
+def market_context(data):
+    out = []
+    for v in data.get("markets", {}).values():
+        if v.get("change_pct") is not None:
+            out.append(f"- {v['name']} {v['change_pct']:+.2f}% (기준 {v.get('as_of')})")
+    out.append("[시장 뉴스]")
+    out += [f"- {n['title']} ({n['source']})" for n in data.get("market_news", [])[:12]]
+    return "\n".join(out)
+
+
 def issue_prompt(data):
     lines = []
     for s in data["stocks"]:
@@ -97,15 +107,25 @@ def issue_prompt(data):
     return f"""너는 한국 개인투자자를 위한 주식 위젯의 편집자야.
 아래는 종목별 오늘 등락률과 최근 24시간 뉴스 제목이야. 종목마다 다음을 만들어 줘.
 
-1. issue: 오늘 주가가 움직인 이유를 한 문장, 35자 이내로.
+1. issue: 오늘 주가가 **왜 그 방향으로** 움직였는지 한 문장, 35자 이내로.
+   - 주가가 내렸으면 내린 이유를, 올랐으면 오른 이유를 써. 방향과 반대되는 뉴스(내렸는데 호재)는 이유로 쓰지 마.
+   - 시장 전체(코스피·나스닥 등)와 같은 방향으로 움직였고 그 회사만의 이유가 안 보이면
+     "코스피 급락에 동반 하락", "반도체주 약세 영향"처럼 시장 흐름을 이유로 써.
+   - 회사만의 큰 뉴스가 있고 시장도 같이 움직였다면 둘을 짧게 함께 써도 돼.
+   - 등락률이 ±1% 안쪽이고 관련 뉴스도 없으면 "특별한 소식 없음".
+   - 미국 주식은 가장 최근 미국 장 기준이야.
    - 초등학생도 알 수 있게 쉬운 말로, 끝은 명사형이나 "~기대", "~우려"처럼 짧게.
-   - 반드시 아래 뉴스 제목에 근거해서만 써. 없는 사실을 지어내지 마.
-   - 이름만 같고 그 회사와 상관없는 기사(예: 'NAVER'로 검색된 부동산 기사)는 무시해.
-   - 관련 뉴스가 없으면 "특별한 소식 없음".
+   - 반드시 아래 뉴스 제목과 시장 흐름에 근거해서만 써. 없는 사실을 지어내지 마.
+   - 그 회사가 주인공이 아닌 기사(다른 회사 이야기에 이름만 나온 기사, 'NAVER'로 검색된 부동산 기사 등)는 무시해.
 2. sentiment: 관련 뉴스의 분위기를 -2(큰 악재) ~ +2(큰 호재) 정수로. 관련 뉴스가 없으면 0.
 3. used_news: 근거로 쓴 기사 번호 목록. 없으면 빈 목록.
 
 종목 이름(name)은 아래 제목의 이름을 그대로 써.
+
+[오늘 시장 흐름]
+{market_context(data)}
+
+[종목별 자료]
 {''.join(chr(10) + l for l in lines)}
 """
 
@@ -155,6 +175,8 @@ def market_prompt(data, issues):
 [지표]
 {chr(10).join(ind)}
 
+[주요 지수]
+{market_context(data).split("[시장 뉴스]")[0]}
 [관심 종목]
 {chr(10).join(st)}
 
@@ -177,6 +199,8 @@ def main():
     report = [f"## 3-2 AI 요약 결과 ({iso(now_kst())})", ""]
     try:
         issues, m1 = summarize_issues(config, data)
+        if m1["skipped"]:
+            report.append("건너뛴 모델: " + " / ".join(e[:120] for e in m1["skipped"]))
         report += [f"**종목 이슈** (모델 {m1['model']}, 토큰 {m1['usage'].get('totalTokenCount')})", "",
                    "| 종목 | 등락률 | AI 이슈 | 분위기 |", "|---|---|---|---|"]
         for s in data["stocks"]:

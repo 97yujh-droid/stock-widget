@@ -68,6 +68,12 @@
       "code": "AAPL",
       "market": "US",
       "naver": "AAPL.O"
+    },
+    {
+      "name": "인텔",
+      "code": "INTC",
+      "market": "US",
+      "naver": "INTC.O"
     }
   ],
   "ai": {

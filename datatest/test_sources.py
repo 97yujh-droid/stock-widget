@@ -274,12 +274,20 @@ def naver_ac(q):
     return short(json.dumps(items[:3] if isinstance(items, list) else j, ensure_ascii=False), 600)
 
 
+def ac_raw(target, ua, accept):
+    r = requests.get(f"https://ac.stock.naver.com/ac?q={quote('마이크로소프트')}&target={target}",
+                     headers={"User-Agent": ua, "Accept": accept}, timeout=TIMEOUT)
+    return f"HTTP {r.status_code} / {short(r.text, 200)}"
+
+
+APP_UA = "Dalvik/2.1.0 (Linux; U; Android 14; SM-S928N Build/UP1A)"
+GH = "application/vnd.github+json"
 TESTS = [
-    ("검색", "삼성", lambda: naver_ac("삼성")),
-    ("검색", "005930", lambda: naver_ac("005930")),
-    ("검색", "엔비디아", lambda: naver_ac("엔비디아")),
-    ("검색", "MSFT", lambda: naver_ac("MSFT")),
-    ("검색", "TSM", lambda: naver_ac("TSM")),
+    ("검색", "target=stock, 브라우저", lambda: ac_raw("stock", UA, "*/*")),
+    ("검색", "target=stock,index, 브라우저", lambda: ac_raw("stock,index", UA, "*/*")),
+    ("검색", "target=stock, 앱 방식", lambda: ac_raw("stock", APP_UA, GH)),
+    ("검색", "target=stock,index, 앱 방식", lambda: ac_raw("stock,index", APP_UA, GH)),
+    ("검색", "target=stock,index, 앱UA+*/*", lambda: ac_raw("stock,index", APP_UA, "*/*")),
 ]
 
 

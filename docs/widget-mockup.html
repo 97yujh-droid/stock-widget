@@ -151,7 +151,7 @@ details.sd2 summary::-webkit-details-marker{display:none}
 </style>
 
 <div class="wrap">
-  <h1>마켓 날씨 시안 <span class="tag">숫자는 예시</span></h1>
+  <h1>오늘의 시장 시안 <span class="tag">숫자는 예시</span></h1>
   <p class="lead">나무 스타일로 정리했어요. 지표마다 <b>언제 기준 숫자인지</b>와 <b>얼마나 자주 바뀌는지</b>를 적었어요. 위젯을 누르면 앱 화면이 열려요.</p>
 
   <div class="tabs" role="tablist">
@@ -281,7 +281,7 @@ function stockDetail(s){const x=SC[s[0]];if(!x)return "";const v=sscore(s[0]),z=
   const hold=h?`<div class="hold">보유 ${x.qty}주 · 평단 ${h.us?"$"+x.avg.toFixed(2):x.avg.toLocaleString("ko-KR")+"원"} · 내 수익 <span class="${cls(h.r)}">${signPct(h.r)} (${h.amt>=0?"+":"-"}${money(h.amt,h.us)})</span></div>`:"";
   return `${hold}<details class="sd2"${s[0]==="삼성전자"?" open":""}><summary>종목 점수 <b style="color:${z[3]}">${v}</b> ${z[1]} ${z[2]} · 항목별 보기 ▾</summary>
    <p class="aiwhy">🤖 ${x.ai}</p>${x.f.map((f,i)=>`<div class="fx"><b>${FN[i]}<small>가중치 ${FW[i]}</small></b><span class="raw">${f}점</span><div class="bar2"><span><i style="width:${f}%;background:${zone(f)[3]}"></i></span><em>+${(FW[i]*f/100).toFixed(1)}</em></div></div>`).join("")}</details>`}
-const head=`<div class="w-head"><span class="logo">마켓 날씨</span><span class="time num">08:30:00 ↻</span><span class="w-ico">⚙</span></div>${scoreBand()}`;
+const head=`<div class="w-head"><span class="logo">오늘의 시장</span><span class="time num">08:30:00 ↻</span><span class="w-ico">⚙</span></div>${scoreBand()}`;
 
 function stockRow(s){const c=cls(s[4]);return `<div class="row"><div class="nm"><b>${s[0]}</b><small>${s[1]}</small></div>
  <span class="v num ${c}">${s[2]}${/^[A-Z]/.test(s[1])&&s[4]?`<span class="ar">${arr(s[4])}</span>`:""}</span><span class="d num ${c}">${s[3]}</span><span class="p num ${c}">${pct(s[4])}</span><span class="why">${metaTxt(s)}${s[5]}</span></div>`}
@@ -318,7 +318,7 @@ function render(){
     sc.querySelectorAll(".widget").forEach(w=>w.onclick=()=>setView("d"));
   }else if(v==="d"){
     sc.className="app";
-    sc.innerHTML=`<div class="app-top"><b>‹ 마켓 날씨</b><span>마지막 업데이트 10/29 08:30</span></div>
+    sc.innerHTML=`<div class="app-top"><b>‹ 오늘의 시장</b><span>마지막 업데이트 10/29 08:30</span></div>
     ${scoreCard()}
     <div class="card"><h3>오늘 시황 (AI 요약)</h3><p>코스피는 삼성전자와 SK하이닉스가 이끌며 1.2% 올랐어요. 반면 미국 기술주는 최근 많이 오른 데 따른 차익 실현으로 약세였어요. 원/달러 환율은 1,385원으로 소폭 올랐고, 시장 불안 지표인 VIX는 16대로 안정적이에요.</p>
       <div class="hint">10/29 08:00 작성 · 국내 10/28 장 + 밤사이 미국 10/28 장 기준<br>하루 5번 새로 요약: 06:00 미국 장 끝 · 08:00 국내 장 전 · 12:00 점심 · 15:40 국내 장 끝 · 21:00 미국 장 전</div></div>

@@ -222,7 +222,7 @@ def collect(config):
             if s.get("naver"):
                 fns.append(lambda c=s["naver"]: naver_world(c))
             q = first_ok(*fns)
-        news = first_ok(lambda n=s["name"]: google_news(n, config.get("news_per_stock", 8)))
+        news = first_ok(lambda n=s.get("news_query", s["name"]): google_news(n, config.get("news_per_stock", 8)))
         stocks.append({**s, "quote": q, "news": news if isinstance(news, list) else [],
                        "news_error": news.get("error") if isinstance(news, dict) else None})
 
@@ -234,7 +234,13 @@ def collect(config):
     ind["fear_greed"] = {"name": "공포탐욕지수", **first_ok(cnn_fear_greed)}
     ind["margin_debt"] = {"name": "Margin Debt (전년비 %)", **first_ok(margin_debt)}
 
-    return {"collected_at": iso(t0), "stocks": stocks, "indicators": ind,
+    market_news = []
+    for q in config.get("market_news_queries", []):
+        r = first_ok(lambda q=q: google_news(q, 8))
+        if isinstance(r, list):
+            market_news += r
+
+    return {"collected_at": iso(t0), "stocks": stocks, "indicators": ind, "market_news": market_news,
             "took_sec": round((now_kst() - t0).total_seconds(), 1)}
 
 

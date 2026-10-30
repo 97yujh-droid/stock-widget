@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install requests
-      - run: python server/collect.py
+      - run: python server/summarize.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

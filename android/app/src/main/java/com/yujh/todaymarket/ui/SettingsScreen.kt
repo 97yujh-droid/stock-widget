@@ -28,17 +28,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.lazy.rememberLazyListState
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.key
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.zIndex
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -69,8 +63,20 @@ fun SettingsScreen(
     onBack: () -> Unit,
 ) {
     val stocks = data?.let { settings.arrange(it.stocks, includeHidden = true) } ?: emptyList()
+    val byCode = stocks.associateBy { it.code }
+    val latestSettings by rememberUpdatedState(settings)
+    val latestOnChange by rememberUpdatedState(onChange)
+    val haptic = LocalHapticFeedback.current
+    var order by remember(stocks.map { it.code }) { mutableStateOf(stocks.map { it.code }) }
+    val listState = rememberLazyListState()
+    val reorderState = rememberReorderableLazyListState(listState) { from, to ->
+        val a = order.indexOf(from.key)
+        val b = order.indexOf(to.key)
+        if (a >= 0 && b >= 0) order = order.toMutableList().apply { add(b, removeAt(a)) }
+    }
 
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize().background(Palette.Bg)
             .windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -116,7 +122,19 @@ fun SettingsScreen(
             }
         }
         if (stocks.isEmpty()) item { Text("데이터를 받은 뒤에 종목이 나와요.", color = Palette.Sub, fontSize = 13.sp) }
-        if (stocks.isNotEmpty()) item { StockOrderList(stocks, settings, onChange) }
+        items(order, key = { it }) { code ->
+            val st = byCode[code] ?: return@items
+            ReorderableItem(reorderState, key = code) { isDragging ->
+                Box(
+                    Modifier.longPressDraggableHandle(
+                        onDragStarted = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
+                        onDragStopped = { latestOnChange(latestSettings.copy(order = order)) },
+                    ),
+                ) {
+                    StockSettingRow(st, settings, isDragging, onChange)
+                }
+            }
+        }
 
         item {
             Group("데이터") {
@@ -349,76 +367,6 @@ private fun MonitorPicker(data: MarketData?, settings: AppSettings, onChange: (A
         mons.forEach { m ->
             Toggle(m.name, m.key in settings.widgetMonitors) { on ->
                 onChange(settings.copy(widgetMonitors = if (on) settings.widgetMonitors + m.key else settings.widgetMonitors - m.key))
-            }
-        }
-    }
-}
-
-
-// ---------------- 꾹 눌러서 순서 바꾸기 ----------------
-
-@Composable
-private fun StockOrderList(stocks: List<Stock>, settings: AppSettings, onChange: (AppSettings) -> Unit) {
-    val latestSettings by rememberUpdatedState(settings)
-    val latestOnChange by rememberUpdatedState(onChange)
-    val haptic = LocalHapticFeedback.current
-    val gapPx = with(LocalDensity.current) { 10.dp.toPx() }
-    val byCode = stocks.associateBy { it.code }
-    var order by remember(stocks.map { it.code }) { mutableStateOf(stocks.map { it.code }) }
-    var dragging by remember { mutableStateOf<String?>(null) }
-    var offset by remember { mutableFloatStateOf(0f) }
-    val heights = remember { mutableStateMapOf<String, Int>() }
-
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        order.forEach { code ->
-            val s = byCode[code] ?: return@forEach
-            key(code) {
-                val isDrag = dragging == code
-                Box(
-                    Modifier
-                        .onSizeChanged { heights[code] = it.height }
-                        .zIndex(if (isDrag) 1f else 0f)
-                        .graphicsLayer {
-                            translationY = if (isDrag) offset else 0f
-                            val sc = if (isDrag) 1.03f else 1f
-                            scaleX = sc; scaleY = sc
-                        }
-                        .pointerInput(code) {
-                            detectDragGesturesAfterLongPress(
-                                onDragStart = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    dragging = code
-                                    offset = 0f
-                                },
-                                onDrag = { change, amount ->
-                                    change.consume()
-                                    offset += amount.y
-                                    val idx = order.indexOf(code)
-                                    val step = (heights[code] ?: 0) + gapPx
-                                    if (step > 0) {
-                                        if (offset > step / 2 && idx < order.lastIndex) {
-                                            order = order.toMutableList().apply { add(idx + 1, removeAt(idx)) }
-                                            offset -= step
-                                        } else if (offset < -step / 2 && idx > 0) {
-                                            order = order.toMutableList().apply { add(idx - 1, removeAt(idx)) }
-                                            offset += step
-                                        }
-                                    }
-                                },
-                                onDragEnd = {
-                                    dragging = null
-                                    offset = 0f
-                                    latestOnChange(latestSettings.copy(order = order))
-                                },
-                                onDragCancel = {
-                                    dragging = null
-                                    offset = 0f
-                                },
-                            )
-                        },
-                ) {
-                    StockSettingRow(s, settings, isDrag, onChange)
-                }
             }
         }
     }

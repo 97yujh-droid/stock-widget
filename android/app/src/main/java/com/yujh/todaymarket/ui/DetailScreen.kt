@@ -191,8 +191,7 @@ private fun ScoreRow(item: ScoreItem, guide: IndGuide? = null) {
             Text("  가중치 ${item.weight}", color = Palette.Faint, fontSize = 11.sp, maxLines = 1)
         }
         if (guide != null) {
-            Text("${guide.what} · ${guide.meaning}", color = Palette.Sub, fontSize = 11.sp)
-            Text("기준 ${guide.levels}", color = Color(0xFF6F9BD1), fontSize = 11.sp)
+            GuideBlock(guide)
         }
         Text("지금 ${item.value ?: "-"}", color = Palette.Fg.copy(alpha = 0.85f), fontSize = 11.sp,
             modifier = Modifier.padding(bottom = 2.dp))
@@ -296,11 +295,8 @@ private fun IndicatorCard(ind: Indicator) {
                 if (c.isNotEmpty()) Text(c, color = if (grey) Palette.Stale else changeColor(dir), fontSize = 12.sp)
             }
         }
-        if (g != null) {
-            Text(g.what + " · " + g.meaning + if (grey) "  · 하루 넘게 지난 숫자" else "", color = Palette.Sub, fontSize = 12.sp)
-        }
+        if (g != null) GuideBlock(g, if (grey) "  · 하루 넘게 지난 숫자" else "")
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Palette.Box).padding(8.dp)) {
-            if (g != null) Meta("기준치", g.levels)
             Meta("기준 시각", fmtTime(ind.asOf) + (ind.published?.let { " (발표 ${fmtTime(it)})" } ?: ""))
             Meta("바뀌는 때", g?.changes ?: (ind.cycle ?: "-"))
             if (!ind.label.isNullOrBlank() && ind.key !in setOf("fear_greed")) Meta("참고", ind.label)

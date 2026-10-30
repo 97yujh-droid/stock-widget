@@ -58,4 +58,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("androidx.glance:glance-appwidget:1.1.1")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
+    // 목록 순서 바꾸기 (꾹 눌러 끌기 + 화면 끝에서 자동 스크롤)
+    implementation("sh.calvin.reorderable:reorderable:2.4.3")
 }

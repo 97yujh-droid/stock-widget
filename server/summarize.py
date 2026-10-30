@@ -191,9 +191,11 @@ def _val(v):
     if v.get("price") is None:
         return None
     p = v["price"]
-    txt = f"{p:,.2f}" if isinstance(p, float) else str(p)
-    if v.get("unit"):
-        txt += v["unit"]
+    if v.get("unit") == "억원":
+        a = abs(int(p))
+        txt = ("-" if p < 0 else "+") + (f"{a // 10000}조 " if a >= 10000 else "") + f"{a % 10000:,}억원"
+    else:
+        txt = f"{p:,.2f}" if isinstance(p, float) else str(p)
     if v.get("label"):
         txt += f" ({v['label']})"
     if v.get("change_pct") is not None:

@@ -28,6 +28,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.key
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.yujh.todaymarket.data.SearchItem
 import com.yujh.todaymarket.data.WatchlistApi
@@ -98,15 +111,12 @@ fun SettingsScreen(
         item {
             Column {
                 Text("관심 종목 (순서·숨기기·삭제)", color = Palette.Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text("숨기기는 이 휴대폰에서만 안 보이게, 삭제는 서버 목록에서 빼요.", color = Palette.Sub, fontSize = 12.sp)
+                Text("종목을 꾹 누른 채 위아래로 끌면 순서가 바뀌어요. 숨기기는 이 휴대폰에서만 안 보이게, 삭제는 서버 목록에서 빼요.",
+                    color = Palette.Sub, fontSize = 12.sp)
             }
         }
         if (stocks.isEmpty()) item { Text("데이터를 받은 뒤에 종목이 나와요.", color = Palette.Sub, fontSize = 13.sp) }
-        items(stocks, key = { it.code }) { s ->
-            StockSettingRow(
-                s = s, settings = settings, codes = stocks.map { it.code }, onChange = onChange,
-            )
-        }
+        if (stocks.isNotEmpty()) item { StockOrderList(stocks, settings, onChange) }
 
         item {
             Group("데이터") {
@@ -155,28 +165,20 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun StockSettingRow(s: Stock, settings: AppSettings, codes: List<String>, onChange: (AppSettings) -> Unit) {
+private fun StockSettingRow(s: Stock, settings: AppSettings, dragging: Boolean, onChange: (AppSettings) -> Unit) {
     val hidden = s.code in settings.hidden
     val scope = rememberCoroutineScope()
     var confirm by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
-    fun move(delta: Int) {
-        val list = codes.toMutableList()
-        val i = list.indexOf(s.code)
-        val j = i + delta
-        if (i < 0 || j < 0 || j >= list.size) return
-        list[i] = list[j].also { list[j] = list[i] }
-        onChange(settings.copy(order = list))
-    }
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Palette.Card).padding(12.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+            .background(if (dragging) Color(0xFF2A2F25) else Palette.Card).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("☰  ", color = Palette.Faint, fontSize = 16.sp)
             Text(s.name, color = if (hidden) Palette.Stale else Palette.Fg, fontSize = 15.sp,
                 fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            SmallButton("▲") { move(-1) }
-            SmallButton("▼") { move(1) }
             SmallButton(if (hidden) "보이기" else "숨기기") {
                 onChange(settings.copy(hidden = if (hidden) settings.hidden - s.code else settings.hidden + s.code))
             }
@@ -347,6 +349,76 @@ private fun MonitorPicker(data: MarketData?, settings: AppSettings, onChange: (A
         mons.forEach { m ->
             Toggle(m.name, m.key in settings.widgetMonitors) { on ->
                 onChange(settings.copy(widgetMonitors = if (on) settings.widgetMonitors + m.key else settings.widgetMonitors - m.key))
+            }
+        }
+    }
+}
+
+
+// ---------------- 꾹 눌러서 순서 바꾸기 ----------------
+
+@Composable
+private fun StockOrderList(stocks: List<Stock>, settings: AppSettings, onChange: (AppSettings) -> Unit) {
+    val latestSettings by rememberUpdatedState(settings)
+    val latestOnChange by rememberUpdatedState(onChange)
+    val haptic = LocalHapticFeedback.current
+    val gapPx = with(LocalDensity.current) { 10.dp.toPx() }
+    val byCode = stocks.associateBy { it.code }
+    var order by remember(stocks.map { it.code }) { mutableStateOf(stocks.map { it.code }) }
+    var dragging by remember { mutableStateOf<String?>(null) }
+    var offset by remember { mutableFloatStateOf(0f) }
+    val heights = remember { mutableStateMapOf<String, Int>() }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        order.forEach { code ->
+            val s = byCode[code] ?: return@forEach
+            key(code) {
+                val isDrag = dragging == code
+                Box(
+                    Modifier
+                        .onSizeChanged { heights[code] = it.height }
+                        .zIndex(if (isDrag) 1f else 0f)
+                        .graphicsLayer {
+                            translationY = if (isDrag) offset else 0f
+                            val sc = if (isDrag) 1.03f else 1f
+                            scaleX = sc; scaleY = sc
+                        }
+                        .pointerInput(code) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    dragging = code
+                                    offset = 0f
+                                },
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    offset += amount.y
+                                    val idx = order.indexOf(code)
+                                    val step = (heights[code] ?: 0) + gapPx
+                                    if (step > 0) {
+                                        if (offset > step / 2 && idx < order.lastIndex) {
+                                            order = order.toMutableList().apply { add(idx + 1, removeAt(idx)) }
+                                            offset -= step
+                                        } else if (offset < -step / 2 && idx > 0) {
+                                            order = order.toMutableList().apply { add(idx - 1, removeAt(idx)) }
+                                            offset += step
+                                        }
+                                    }
+                                },
+                                onDragEnd = {
+                                    dragging = null
+                                    offset = 0f
+                                    latestOnChange(latestSettings.copy(order = order))
+                                },
+                                onDragCancel = {
+                                    dragging = null
+                                    offset = 0f
+                                },
+                            )
+                        },
+                ) {
+                    StockSettingRow(s, settings, isDrag, onChange)
+                }
             }
         }
     }

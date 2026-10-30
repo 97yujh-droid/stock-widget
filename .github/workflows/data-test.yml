@@ -1,0 +1,26 @@
+name: data-test
+
+# 2단계 데이터 출처 시험. 시험 파일이 바뀌면 자동 실행되고, 직접 실행도 가능.
+on:
+  push:
+    paths:
+      - "datatest/**"
+      - ".github/workflows/data-test.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests openpyxl
+      - run: python datatest/test_sources.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: data-test-results
+          path: datatest/results.json

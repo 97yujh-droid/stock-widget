@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.CompositionLocalProvider
+import com.yujh.todaymarket.data.Charts
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,9 +46,10 @@ import com.yujh.todaymarket.data.Stock
 
 @Composable
 fun DetailScreen(
-    data: MarketData?, loading: Boolean, error: String?, settings: AppSettings,
+    data: MarketData?, loading: Boolean, error: String?, settings: AppSettings, charts: Charts?,
     onRefresh: () -> Unit, onOpenSettings: () -> Unit,
 ) {
+    CompositionLocalProvider(LocalCharts provides charts) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -81,6 +84,7 @@ fun DetailScreen(
                 modifier = Modifier.padding(vertical = 20.dp),
             )
         }
+    }
     }
 }
 
@@ -147,6 +151,7 @@ private fun MarketScoreCard(data: MarketData) {
             }
         }
         ZoneBar(ms.score)
+        ChartBlock("market_score")
         if (!ms.comment.isNullOrBlank()) AiBox(ms.comment)
         ms.items.forEach { ScoreRow(it, SCORE_GUIDE[it.key]) }
         Text("일부 항목은 하루 1번(추세·하이일드·금리차), 한 달 1번(Margin Debt) 바뀌어요. 빈 항목은 빼고 100점 만점으로 환산해요.",
@@ -264,6 +269,7 @@ private fun StockCard(s: Stock, settings: AppSettings) {
             Text(if (open) "접기 ▴" else if (settings.showStockScore) "종목 점수 ${s.score ?: "-"} · 항목별 보기 ▾" else "자세히 보기 ▾",
                 color = Palette.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
         }
+        ChartBlock("stock:" + s.code)
         if (open) {
             if (!s.comment.isNullOrBlank()) AiBox(s.comment)
             if (settings.showStockScore) s.scoreItems.forEach { ScoreRow(it, STOCK_GUIDE[it.key]) }
@@ -295,6 +301,7 @@ private fun IndicatorCard(ind: Indicator) {
                 if (c.isNotEmpty()) Text(c, color = if (grey) Palette.Stale else changeColor(dir), fontSize = 12.sp)
             }
         }
+        ChartBlock(ind.key, if (ind.key == "margin_debt") "그래프는 증가율이 아니라 잔고(조 달러)예요" else null)
         if (g != null) GuideBlock(g, if (grey) "  · 하루 넘게 지난 숫자" else "")
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Palette.Box).padding(8.dp)) {
             Meta("기준 시각", fmtTime(ind.asOf) + (ind.published?.let { " (발표 ${fmtTime(it)})" } ?: ""))

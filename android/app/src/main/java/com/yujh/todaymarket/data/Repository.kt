@@ -14,6 +14,8 @@ import java.net.URL
 object Repository {
     const val DATA_URL = "https://97yujh-droid.github.io/stock-widget/latest.json"
     private const val CACHE_FILE = "latest.json"
+    const val CHARTS_URL = "https://97yujh-droid.github.io/stock-widget/charts.json"
+    private const val CHARTS_FILE = "charts.json"
 
     private fun cacheFile(context: Context) = File(context.filesDir, CACHE_FILE)
 
@@ -40,6 +42,32 @@ object Repository {
             val data = parseMarketData(text) // 형식이 이상하면 여기서 실패 → 저장 안 함
             cacheFile(context).writeText(text)
             data
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    // ---------------- 그래프용 과거 숫자 ----------------
+
+    fun loadCachedCharts(context: Context): Charts? = try {
+        val f = File(context.filesDir, CHARTS_FILE)
+        if (f.exists()) parseCharts(f.readText()) else null
+    } catch (e: Exception) {
+        null
+    }
+
+    suspend fun fetchCharts(context: Context): Charts = withContext(Dispatchers.IO) {
+        val conn = (URL("$CHARTS_URL?t=${System.currentTimeMillis() / 60000}").openConnection() as HttpURLConnection).apply {
+            connectTimeout = 15000
+            readTimeout = 30000
+            setRequestProperty("Cache-Control", "no-cache")
+        }
+        try {
+            if (conn.responseCode != 200) error("서버 응답 ${conn.responseCode}")
+            val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            val charts = parseCharts(text)
+            File(context.filesDir, CHARTS_FILE).writeText(text)
+            charts
         } finally {
             conn.disconnect()
         }

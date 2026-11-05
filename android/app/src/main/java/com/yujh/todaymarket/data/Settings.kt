@@ -20,6 +20,12 @@ data class AppSettings(
     val githubToken: String = "",            // 관심 종목 추가·삭제용 (휴대폰에만 저장)
     val removed: Set<String> = emptySet(),   // 삭제했지만 아직 서버 결과에 남아 있는 종목
     val widgetMonitors: Set<String> = DEFAULT_WIDGET_MONITORS,  // 위젯에 보일 모니터링 지표
+    // 알림
+    val alertsOn: Boolean = true,
+    val alertMovePct: Float = 5f,       // 관심 종목 하루 ±몇 % 넘으면
+    val alertVix: Boolean = true,       // VIX 25·30 넘을 때
+    val alertZone: Boolean = true,      // 마켓 날씨 바뀔 때
+    val alertEarnings: Boolean = true,  // 실적 발표 하루 전·발표 뒤
 )
 
 val DEFAULT_WIDGET_MONITORS = setOf("wti", "nq_fut", "sox", "kospi_foreign")
@@ -55,6 +61,11 @@ object SettingsStore {
             removed = (p.getString("removed", "") ?: "").split(",").filter { it.isNotBlank() }.toSet(),
             widgetMonitors = p.getString("widgetMonitors", null)
                 ?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: DEFAULT_WIDGET_MONITORS,
+            alertsOn = p.getBoolean("alertsOn", true),
+            alertMovePct = p.getFloat("alertMovePct", 5f),
+            alertVix = p.getBoolean("alertVix", true),
+            alertZone = p.getBoolean("alertZone", true),
+            alertEarnings = p.getBoolean("alertEarnings", true),
         )
     }
 
@@ -82,6 +93,11 @@ object SettingsStore {
             .putString("githubToken", s.githubToken)
             .putString("removed", s.removed.joinToString(","))
             .putString("widgetMonitors", s.widgetMonitors.joinToString(","))
+            .putBoolean("alertsOn", s.alertsOn)
+            .putFloat("alertMovePct", s.alertMovePct)
+            .putBoolean("alertVix", s.alertVix)
+            .putBoolean("alertZone", s.alertZone)
+            .putBoolean("alertEarnings", s.alertEarnings)
             .apply()
     }
 }

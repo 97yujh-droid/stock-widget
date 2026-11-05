@@ -249,7 +249,13 @@ private fun StockRow(s: Stock, st: AppSettings, f: Fonts) {
         Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = GlanceModifier.defaultWeight()) {
                 Text(s.name, style = f.s(Palette.Fg, 14f, bold = true), maxLines = 1)
-                Text(s.code, style = f.s(Color(0xFF9AA0A8), 10f), maxLines = 1)
+                val left = com.yujh.todaymarket.data.EarningsText.daysLeft(s.earnings)
+                if (left != null && left in 0..7) {
+                    Text(s.code + "  ⏰ 실적 " + (if (left == 0L) "D-day" else "D-$left"),
+                        style = f.s(if (left <= 3) Color(0xFFE0883C) else Color(0xFF9AA0A8), 10f, bold = left <= 3), maxLines = 1)
+                } else {
+                    Text(s.code, style = f.s(Color(0xFF9AA0A8), 10f), maxLines = 1)
+                }
             }
             Text(fmtPrice(s.price, s.currency) + if (s.market == "US") " ${arrow(s.changePct)}" else "",
                 style = f.s(c, 13f))

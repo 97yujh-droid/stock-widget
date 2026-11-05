@@ -1,6 +1,12 @@
 package com.yujh.todaymarket.ui
 
+import android.Manifest
 import android.app.Application
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
+import com.yujh.todaymarket.notify.Alerts
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -68,6 +74,7 @@ class MarketViewModel(app: Application) : AndroidViewModel(app) {
                 data = Repository.fetch(getApplication())
                 error = null
                 runCatching { TodayWidget().updateAll(getApplication()) }
+                data?.let { d -> runCatching { Alerts.check(getApplication(), d, settings) } }
             } catch (e: Exception) {
                 error = "새 데이터를 받지 못했어요. 마지막 값을 보여드려요. (${e.message ?: e.javaClass.simpleName})"
             }
@@ -121,6 +128,7 @@ class MarketViewModel(app: Application) : AndroidViewModel(app) {
                     data = fresh
                     error = null
                     runCatching { TodayWidget().updateAll(getApplication()) }
+                    runCatching { Alerts.check(getApplication(), fresh, settings) }
                     runCatching { charts = Repository.fetchCharts(getApplication()) }
                     refreshNote = "모두 새로 받았어요 ✓ (${fmtTime(fresh.generatedAt)})"
                     delay(8_000)
@@ -152,6 +160,13 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(background = Palette.Bg, surface = Palette.Bg)) {
                 val vm: MarketViewModel = viewModel()
+                // 알림 권한 (안드로이드 13 이상은 한 번 물어봐야 함)
+                val askNotify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+                LaunchedEffect(vm.settings.alertsOn) {
+                    if (vm.settings.alertsOn && Build.VERSION.SDK_INT >= 33 && !Alerts.canNotify(this@MainActivity)) {
+                        askNotify.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
                 var screen by remember { mutableStateOf("detail") }
                 BackHandler(enabled = screen == "settings") { screen = "detail" }
 

@@ -10,15 +10,22 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.yujh.todaymarket.data.Repository
+import com.yujh.todaymarket.data.SettingsStore
+import com.yujh.todaymarket.notify.Alerts
 import java.util.concurrent.TimeUnit
 
 /**
- * 30분마다 새 결과 파일을 받아서 위젯을 다시 그린다.
+ * 30분마다 새 결과 파일을 받아서 위젯을 다시 그리고, 알림 조건을 확인한다.
  * 인터넷이 연결돼 있을 때만 실행해서 배터리와 데이터를 아낀다.
  */
 class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        val ok = runCatching { Repository.fetch(applicationContext) }.isSuccess
+        val got = runCatching { Repository.fetch(applicationContext) }
+        val ok = got.isSuccess
+        // 알림 조건 확인 (급등락·VIX·마켓 날씨·실적)
+        got.getOrNull()?.let { d ->
+            runCatching { Alerts.check(applicationContext, d, SettingsStore.load(applicationContext)) }
+        }
         // 받기에 실패해도 위젯은 다시 그린다 ('지난 데이터' 표시를 위해)
         runCatching { TodayWidget().updateAll(applicationContext) }
         return if (ok || runAttemptCount >= 2) Result.success() else Result.retry()

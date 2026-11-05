@@ -64,7 +64,22 @@ data class Stock(
     val scoreItems: List<ScoreItem>,
     val comment: String?,
     val error: String?,
+    val earnings: Earnings? = null,
 )
+
+/** 실적 일정 (미국 종목) 또는 증권사 리포트 (국내 종목) */
+data class Earnings(
+    val nextDate: String?,        // 미국 날짜 "2026-11-17"
+    val timing: String?,          // after = 장 마감 후, before = 장 시작 전
+    val epsForecast: Double?,
+    val note: String?,
+    val last: LastEarnings?,
+    val reports: List<Report>,
+)
+
+data class LastEarnings(val date: String?, val eps: Double?, val forecast: Double?, val surprisePct: Double?)
+
+data class Report(val title: String, val broker: String?, val date: String?)
 
 data class Indicator(
     val key: String,
@@ -149,6 +164,20 @@ fun parseMarketData(text: String): MarketData {
                 scoreItems = s.optJSONArray("score_items").mapObjects(::scoreItem),
                 comment = s.str("comment"),
                 error = s.str("error"),
+                earnings = s.optJSONObject("earnings")?.let { e ->
+                    Earnings(
+                        nextDate = e.str("next_date"),
+                        timing = e.str("timing"),
+                        epsForecast = e.dbl("eps_forecast"),
+                        note = e.str("note"),
+                        last = e.optJSONObject("last")?.let { l ->
+                            LastEarnings(l.str("date"), l.dbl("eps"), l.dbl("forecast"), l.dbl("surprise_pct"))
+                        },
+                        reports = e.optJSONArray("reports").mapObjects { r ->
+                            Report(r.str("title") ?: "", r.str("broker"), r.str("date"))
+                        }.filter { it.title.isNotBlank() },
+                    )
+                },
             )
         },
         indicators = j.optJSONArray("indicators").mapObjects { o ->

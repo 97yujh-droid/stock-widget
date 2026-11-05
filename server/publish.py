@@ -112,6 +112,7 @@ def build(config, data, issues, market_lines, mscore, mcomment, sscores, scommen
             "issue_basis": f"{iso(now)}까지 최근 24시간 뉴스",
             "score": sc.get("score"), "zone": sc.get("name"), "icon": sc.get("icon"),
             "score_items": sc.get("items", []), "comment": scomments.get(s["name"]),
+            "earnings": (data.get("earnings") or {}).get(s["code"]),
         })
 
     indicators = []

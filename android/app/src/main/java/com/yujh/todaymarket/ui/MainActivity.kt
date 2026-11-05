@@ -21,6 +21,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yujh.todaymarket.data.AppSettings
 import com.yujh.todaymarket.data.MarketData
+import com.yujh.todaymarket.data.LiveQuotes
+import com.yujh.todaymarket.data.WatchlistApi
 import com.yujh.todaymarket.data.Repository
 import com.yujh.todaymarket.data.SettingsStore
 import com.yujh.todaymarket.widget.RefreshWorker
@@ -47,22 +49,86 @@ class MarketViewModel(app: Application) : AndroidViewModel(app) {
         refresh()
     }
 
-    fun refresh() {
+    /** ↻ 상태 안내 (가격 받음 · 서버가 새로 만드는 중 등). 없으면 null */
+    var refreshNote by mutableStateOf<String?>(null)
+        private set
+    private var serverJob: Job? = null
+
+    /** 앱을 열 때: 서버 결과만 받는다 */
+    fun refresh() = refreshInternal(manual = false)
+
+    /** ↻ 를 눌렀을 때: 서버 결과 + 가격 바로 받기 + 서버에 새로 만들기 요청 */
+    fun refreshNow() = refreshInternal(manual = true)
+
+    private fun refreshInternal(manual: Boolean) {
         if (loading) return
         loading = true
         viewModelScope.launch {
             try {
                 data = Repository.fetch(getApplication())
                 error = null
-                // 앱에서 새로 받으면 홈 화면 위젯도 바로 다시 그린다
                 runCatching { TodayWidget().updateAll(getApplication()) }
             } catch (e: Exception) {
                 error = "새 데이터를 받지 못했어요. 마지막 값을 보여드려요. (${e.message ?: e.javaClass.simpleName})"
-            } finally {
+            }
+            if (manual) {
+                // 1) 가격은 휴대폰이 직접 바로
+                val cur = data
+                if (cur != null) {
+                    refreshNote = try {
+                        val (live, n) = LiveQuotes.apply(cur)
+                        data = live
+                        "가격 ${n}개를 방금 새로 받았어요."
+                    } catch (e: Exception) {
+                        "가격을 바로 받지 못했어요 (${e.message})."
+                    }
+                }
+                loading = false
+                // 2) AI 요약·점수는 서버에 부탁
+                askServer()
+            } else {
                 loading = false
             }
             // 그래프 숫자는 따로 받는다 (실패해도 지난 그래프를 그대로 보여줌)
             runCatching { charts = Repository.fetchCharts(getApplication()) }
+        }
+    }
+
+    private fun askServer() {
+        val token = settings.githubToken
+        val priceNote = refreshNote ?: ""
+        if (token.isBlank()) {
+            refreshNote = "$priceNote AI 요약·점수까지 바로 받으려면 설정에서 GitHub 열쇠를 연결해 주세요."
+            return
+        }
+        serverJob?.cancel()
+        serverJob = viewModelScope.launch {
+            val before = data?.generatedAt
+            try {
+                WatchlistApi.runServer(token)
+            } catch (e: Exception) {
+                refreshNote = "$priceNote 서버 요청 실패: ${e.message}"
+                return@launch
+            }
+            // 서버가 끝날 때까지 20초마다 확인 (최대 6분)
+            val start = System.currentTimeMillis()
+            while (System.currentTimeMillis() - start < 6 * 60_000) {
+                val sec = (System.currentTimeMillis() - start) / 1000
+                refreshNote = "$priceNote 서버가 AI 요약·점수를 새로 만드는 중… (${sec}초, 보통 1~3분)"
+                delay(20_000)
+                val fresh = runCatching { Repository.fetch(getApplication()) }.getOrNull()
+                if (fresh != null && fresh.generatedAt != before) {
+                    data = fresh
+                    error = null
+                    runCatching { TodayWidget().updateAll(getApplication()) }
+                    runCatching { charts = Repository.fetchCharts(getApplication()) }
+                    refreshNote = "모두 새로 받았어요 ✓ (${fmtTime(fresh.generatedAt)})"
+                    delay(8_000)
+                    refreshNote = null
+                    return@launch
+                }
+            }
+            refreshNote = "서버가 오래 걸려요. 조금 뒤 다시 ↻ 해 주세요."
         }
     }
 
@@ -103,7 +169,7 @@ class MainActivity : ComponentActivity() {
                         DetailScreen(
                             data = vm.data, loading = vm.loading, error = vm.error,
                             settings = vm.settings, charts = vm.charts,
-                            onRefresh = vm::refresh, onOpenSettings = { screen = "settings" },
+                            onRefresh = vm::refreshNow, refreshNote = vm.refreshNote, onOpenSettings = { screen = "settings" },
                         )
                     }
                 }

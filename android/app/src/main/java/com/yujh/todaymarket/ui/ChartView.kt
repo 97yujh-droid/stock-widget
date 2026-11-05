@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -33,6 +34,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -95,111 +100,118 @@ private fun fmtV(v: Double): String {
 private val ymd = DateTimeFormatter.ofPattern("yy.M.d")
 
 /**
- * 카드 안 그래프: 평소엔 작은 선 그래프, 누르면 크게 + 기간 고르기 + 손가락으로 날짜별 값 보기.
- * note: 그래프 아래에 덧붙일 설명 (예: Margin Debt 는 잔고 그래프)
+ * 카드 안 그래프. 항상 보이고, 기간 버튼으로 1개월/3개월/1년.
+ * 손가락으로 좌우로 끌면 날짜별 값, "크게"를 누르면 높이가 커진다.
+ * overlayKey: 같이 그릴 보조선 (예: S&P500 의 200일 평균)
  */
 @Composable
-fun ChartBlock(key: String, note: String? = null) {
-    val all = LocalCharts.current?.series?.get(key) ?: return
+fun ChartBlock(
+    key: String, note: String? = null, overlayKey: String? = null, overlayName: String? = null,
+    height: Dp = 96.dp, title: String? = null,
+) {
+    val charts = LocalCharts.current
+    val all = charts?.series?.get(key) ?: return
     if (all.size < 2) {
         Text("그래프: 기록이 쌓이는 중이에요 (하루 1개씩)", color = Palette.Faint, fontSize = 11.sp)
         return
     }
-    var open by remember(key) { mutableStateOf(false) }
+    var big by remember(key) { mutableStateOf(false) }
     var period by remember(key) { mutableStateOf(defaultPeriod(key)) }
+    var touch by remember(key, period) { mutableStateOf<Int?>(null) }
     val pts = cut(all, period).ifEmpty { all }
+    val overlay = overlayKey?.let { charts.series[it] }?.let { o ->
+        val from = pts.first().date
+        o.filter { !it.date.isBefore(from) }
+    }
     val first = pts.first().value
     val last = pts.last().value
     val pct = if (first != 0.0) (last / first - 1) * 100 else 0.0
     val lineColor = changeColor(last - first)
+    val t = touch?.coerceIn(0, pts.size - 1)
 
-    if (!open) {
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { open = true }
-                .padding(vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            LineChart(pts, null, lineColor, Modifier.weight(1f).height(36.dp), small = true)
-            Spacer(Modifier.width(10.dp))
-            Column(horizontalAlignment = Alignment.End) {
-                Text(period.label, color = Palette.Faint, fontSize = 10.sp)
-                Text(String.format("%+.1f%%", pct), color = lineColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Text("크게 ▸", color = Palette.Sub, fontSize = 10.sp)
-            }
-        }
-        return
-    }
-
-    var touch by remember(key, period) { mutableStateOf<Int?>(null) }
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Palette.Box).padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0xFF181818))
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            if (title != null) {
+                Text(title, color = Palette.Sub, fontSize = 11.sp, modifier = Modifier.padding(end = 6.dp))
+            }
             periodsFor(key).forEach { p ->
                 val on = p == period
                 Text(
-                    p.label, color = if (on) Palette.Bg else Palette.Sub, fontSize = 12.sp,
+                    p.label, color = if (on) Palette.Bg else Palette.Sub, fontSize = 11.sp,
                     fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
-                    modifier = Modifier.padding(end = 6.dp).clip(RoundedCornerShape(12.dp))
+                    modifier = Modifier.padding(end = 4.dp).clip(RoundedCornerShape(10.dp))
                         .background(if (on) Palette.Accent else Color(0xFF262626))
                         .clickable { period = p; touch = null }
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
                 )
             }
             Spacer(Modifier.weight(1f))
-            Text("접기 ▴", color = Palette.Sub, fontSize = 12.sp,
-                modifier = Modifier.clickable { open = false }.padding(4.dp))
+            if (t != null) {
+                Text("${pts[t].date.format(ymd)}  ${fmtV(pts[t].value)}", color = Palette.Fg, fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold)
+            } else {
+                Text(String.format("%+.1f%%", pct), color = lineColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+            Text(if (big) "  작게" else "  크게", color = Palette.Sub, fontSize = 11.sp,
+                modifier = Modifier.clickable { big = !big }.padding(start = 2.dp))
         }
-        val t = touch?.coerceIn(0, pts.size - 1)
-        val shown = if (t != null) pts[t] else pts.last()
-        Text(
-            (if (t != null) shown.date.format(ymd) else "지금") + "  " + fmtV(shown.value) +
-                "   ·   ${period.label} 동안 " + String.format("%+.1f%%", pct),
-            color = Palette.Fg, fontSize = 12.sp,
+        LineChart(
+            pts, overlay, BANDS[key], lineColor,
+            Modifier.fillMaxWidth().height(if (big) 210.dp else height), big = big,
+            touch = t, onTouch = { touch = it },
         )
-        LineChart(pts, BANDS[key], lineColor, Modifier.fillMaxWidth().height(170.dp), small = false,
-            touch = t, onTouch = { touch = it })
-        Row {
-            Text(pts.first().date.format(ymd), color = Palette.Faint, fontSize = 10.sp)
-            Spacer(Modifier.weight(1f))
-            Text("최저 ${fmtV(pts.minOf { it.value })} · 최고 ${fmtV(pts.maxOf { it.value })}",
-                color = Palette.Faint, fontSize = 10.sp)
-            Spacer(Modifier.weight(1f))
-            Text(pts.last().date.format(ymd), color = Palette.Faint, fontSize = 10.sp)
+        if (big || overlay != null || note != null) {
+            val legend = buildList {
+                if (overlay != null) add("점선 = ${overlayName ?: "보조선"}")
+                if (big && BANDS[key] != null) add("색 띠 = 기준치 (초록 좋음 · 노랑 보통 · 주황 주의 · 보라 위험)")
+                if (big) add("좌우로 끌면 날짜별 값")
+                if (note != null) add(note)
+            }
+            if (legend.isNotEmpty()) Text(legend.joinToString(" · "), color = Palette.Faint, fontSize = 10.sp)
         }
-        Text(
-            (if (BANDS[key] != null) "옅은 색 띠 = 기준치 구간 (초록 좋음 · 노랑 보통 · 주황 주의 · 보라 위험) · " else "") +
-                "그래프를 눌러 끌면 날짜별 값이 보여요" + (note?.let { " · $it" } ?: ""),
-            color = Palette.Faint, fontSize = 10.sp,
-        )
     }
 }
 
+private val monthFmt = DateTimeFormatter.ofPattern("M월")
+
 @Composable
 private fun LineChart(
-    pts: List<ChartPoint>, bands: List<Band>?, lineColor: Color, modifier: Modifier, small: Boolean,
-    touch: Int? = null, onTouch: (Int?) -> Unit = {},
+    pts: List<ChartPoint>, overlay: List<ChartPoint>?, bands: List<Band>?, lineColor: Color,
+    modifier: Modifier, big: Boolean, touch: Int?, onTouch: (Int?) -> Unit,
 ) {
-    val vals = pts.map { it.value }
+    val measurer = rememberTextMeasurer()
+    val labelStyle = TextStyle(color = Palette.Faint, fontSize = 9.sp)
+    val vals = pts.map { it.value } + (overlay?.map { it.value } ?: emptyList())
     var lo = vals.min()
     var hi = vals.max()
     if (hi - lo < 1e-9) { hi += 1.0; lo -= 1.0 }
     val pad = (hi - lo) * 0.08
     lo -= pad; hi += pad
     val n = pts.size
+    val index = pts.withIndex().associate { it.value.date to it.index }
 
-    val m = if (small) modifier else modifier.pointerInput(n) {
-        fun idx(x: Float) = ((x / size.width) * (n - 1)).toInt().coerceIn(0, n - 1)
-        detectTapGestures { onTouch(idx(it.x)) }
-    }.pointerInput(n, "drag") {
-        fun idx(x: Float) = ((x / size.width) * (n - 1)).toInt().coerceIn(0, n - 1)
-        detectHorizontalDragGestures(onDragStart = { onTouch(idx(it.x)) }) { change, _ -> onTouch(idx(change.position.x)) }
-    }
-
-    Canvas(m) {
-        val w = size.width
-        val h = size.height
+    val gutterDp = 40.dp
+    Canvas(
+        modifier.pointerInput(n, big) {
+            val gw = gutterDp.toPx()
+            fun idx(x: Float) = ((x / (size.width - gw)) * (n - 1)).toInt().coerceIn(0, n - 1)
+            detectTapGestures(onTap = { onTouch(idx(it.x)) }, onDoubleTap = { onTouch(null) })
+        }.pointerInput(n, big, "drag") {
+            val gw = gutterDp.toPx()
+            fun idx(x: Float) = ((x / (size.width - gw)) * (n - 1)).toInt().coerceIn(0, n - 1)
+            detectHorizontalDragGestures(onDragStart = { onTouch(idx(it.x)) }) { change, _ ->
+                onTouch(idx(change.position.x))
+            }
+        },
+    ) {
+        val gutter = gutterDp.toPx()
+        val bottomPad = if (big) 14.dp.toPx() else 0f
+        val w = size.width - gutter
+        val h = size.height - bottomPad
         fun y(v: Double) = (h - ((v - lo) / (hi - lo) * h)).toFloat()
         fun x(i: Int) = if (n == 1) w / 2 else w * i / (n - 1)
 
@@ -207,32 +219,62 @@ private fun LineChart(
         bands?.forEach { b ->
             val top = y(minOf(b.to, hi)).coerceIn(0f, h)
             val bot = y(maxOf(b.from, lo)).coerceIn(0f, h)
-            if (bot - top > 0.5f) drawRect(b.color.copy(alpha = 0.13f), Offset(0f, top), Size(w, bot - top))
+            if (bot - top > 0.5f) drawRect(b.color.copy(alpha = 0.12f), Offset(0f, top), Size(w, bot - top))
         }
-        // 가로 보조선 (큰 그래프만)
-        if (!small) {
-            for (k in 1..3) {
-                val yy = h * k / 4
-                drawLine(Color(0xFF2A2A2A), Offset(0f, yy), Offset(w, yy), 1f)
+        // 가로 눈금선 + 오른쪽 숫자
+        val ticks = if (big) 4 else 2
+        for (k in 0..ticks) {
+            val v = lo + pad + (hi - lo - 2 * pad) * k / ticks
+            val yy = y(v)
+            drawLine(Color(0xFF2A2A2A), Offset(0f, yy), Offset(w, yy), 1f)
+            val tl = measurer.measure(fmtV(v), labelStyle)
+            drawText(tl, topLeft = Offset(w + 4f, (yy - tl.size.height / 2f).coerceIn(0f, h - tl.size.height)))
+        }
+        // 아래 월 표시 (크게 볼 때)
+        if (big) {
+            var lastMonth = -1
+            pts.forEachIndexed { i, p ->
+                if (p.date.monthValue != lastMonth) {
+                    if (lastMonth != -1 || i == 0) {
+                        val tl = measurer.measure(p.date.format(monthFmt), labelStyle)
+                        val xx = x(i)
+                        if (xx + tl.size.width < w) drawText(tl, topLeft = Offset(xx, h + 2f))
+                    }
+                    lastMonth = p.date.monthValue
+                }
             }
         }
-        // 선
-        val path = Path()
-        pts.forEachIndexed { i, p -> if (i == 0) path.moveTo(x(i), y(p.value)) else path.lineTo(x(i), y(p.value)) }
-        drawPath(path, lineColor, style = Stroke(width = if (small) 3f else 4f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        // 시작값 점선
-        if (!small) {
-            drawLine(Palette.Sub.copy(alpha = 0.5f), Offset(0f, y(pts.first().value)), Offset(w, y(pts.first().value)), 1.5f,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f)))
+        // 선 아래 채우기 + 선
+        val line = Path()
+        pts.forEachIndexed { i, p -> if (i == 0) line.moveTo(x(i), y(p.value)) else line.lineTo(x(i), y(p.value)) }
+        val fill = Path().apply {
+            addPath(line)
+            lineTo(x(n - 1), h)
+            lineTo(x(0), h)
+            close()
         }
-        // 손가락 위치
+        drawPath(fill, Brush.verticalGradient(listOf(lineColor.copy(alpha = 0.30f), lineColor.copy(alpha = 0.02f)), 0f, h))
+        // 보조선 (예: 200일 평균)
+        if (overlay != null && overlay.size > 1) {
+            val op = Path()
+            var started = false
+            overlay.forEach { p ->
+                val i = index[p.date] ?: return@forEach
+                if (!started) { op.moveTo(x(i), y(p.value)); started = true } else op.lineTo(x(i), y(p.value))
+            }
+            drawPath(op, Color(0xFFB8C0CC), style = Stroke(width = 2.5f,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))))
+        }
+        drawPath(line, lineColor, style = Stroke(width = if (big) 4f else 3.2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        // 손가락 위치 / 마지막 점
         if (touch != null) {
             val tx = x(touch)
-            drawLine(Color.White.copy(alpha = 0.6f), Offset(tx, 0f), Offset(tx, h), 2f)
-            drawCircle(lineColor, 7f, Offset(tx, y(pts[touch].value)))
-            drawCircle(Color.White, 3f, Offset(tx, y(pts[touch].value)))
+            drawLine(Color.White.copy(alpha = 0.55f), Offset(tx, 0f), Offset(tx, h), 2f)
+            drawCircle(lineColor, 8f, Offset(tx, y(pts[touch].value)))
+            drawCircle(Color.White, 3.5f, Offset(tx, y(pts[touch].value)))
         } else {
-            drawCircle(lineColor, if (small) 4f else 6f, Offset(x(n - 1), y(pts.last().value)))
+            drawCircle(lineColor.copy(alpha = 0.25f), 12f, Offset(x(n - 1), y(pts.last().value)))
+            drawCircle(lineColor, 5f, Offset(x(n - 1), y(pts.last().value)))
         }
     }
 }

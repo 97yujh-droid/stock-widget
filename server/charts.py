@@ -7,6 +7,8 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from collect import KST, ROOT, S, first_ok, get, iso, now_kst
+from bisect import bisect_right
+
 from history import cnbc_bars, fred_series
 
 KEEP_DAYS = 370   # 1년 + 여유
@@ -57,6 +59,65 @@ def margin_hist():
     m = json.loads((ROOT / "data/manual/margin_debt.json").read_text(encoding="utf-8"))
     hist = {k: v for k, v in (m.get("history") or {}).items() if v}
     return [[k.replace("-", "") + "28", round(hist[k] / 1e6, 3)] for k in sorted(hist)]
+
+
+def _upto(rows, d):
+    """날짜 d(YYYYMMDD)까지의 행만"""
+    if not isinstance(rows, list):
+        return rows
+    i = bisect_right([r[0] for r in rows], d)
+    return rows[:i] if i >= 30 else {"error": "과거 부족"}
+
+
+def _at(rows, d):
+    """d 이전(포함) 마지막 값"""
+    if not isinstance(rows, list) or not rows:
+        return None
+    i = bisect_right([str(r[0]) for r in rows], d)
+    return rows[i - 1][1] if i else None
+
+
+def backfill_scores(series, vix, move, fg):
+    """과거 숫자로 지난 1년 날씨 점수를 거꾸로 계산 → [[날짜, 점수]]"""
+    from scoring import market_score
+    spx = series.get("spx")
+    if not isinstance(spx, list):
+        return []
+    m = json.loads((ROOT / "data/manual/margin_debt.json").read_text(encoding="utf-8"))
+    mh = {k.replace("-", ""): v for k, v in (m.get("history") or {}).items() if v}
+    cut = (now_kst() - timedelta(days=KEEP_DAYS)).strftime("%Y%m%d")
+    tup = {k: [tuple(r) for r in v] if isinstance(v, list) else v for k, v in series.items()}
+    out = []
+    for d, _ in spx:
+        if d < cut:
+            continue
+        months = [k for k in mh if k + "28" <= d]
+        md = None
+        if months:
+            k = max(months)
+            ago = mh.get(f"{int(k[:4]) - 1}{k[4:]}")
+            md = (mh[k] / ago - 1) * 100 if ago else None
+        data = {"indicators": {
+            "vix": {"price": _at(vix, d)}, "move": {"price": _at(move, d)},
+            "fear_greed": {"price": _at(fg, d)}, "margin_debt": {"price": md},
+            "hy_spread": {"price": None}, "us10y": {"price": None},
+        }}
+        ser = {k: _upto(v, d) for k, v in tup.items()}
+        try:
+            sc = market_score(data, ser)["score"]
+        except Exception:
+            sc = None
+        if sc is not None:
+            out.append([d, sc])
+    return out
+
+
+def ma_line(rows, n=200):
+    """n일 이동평균 선 → [(날짜, 값)]"""
+    if not isinstance(rows, list) or len(rows) < n:
+        return {"error": "기간 부족"}
+    c = [v for _, v in rows]
+    return [(rows[i][0], sum(c[i - n + 1:i + 1]) / n) for i in range(n - 1, len(rows))]
 
 
 def load_previous_charts(config):
@@ -115,7 +176,21 @@ def build_charts(config, series, stock_rows, score_hist):
     put("bitcoin", first_ok(lambda: coingecko_hist("bitcoin"), lambda: kraken_hist("XBTUSD")))
     put("ethereum", first_ok(lambda: coingecko_hist("ethereum"), lambda: kraken_hist("ETHUSD")))
     # 마켓 날씨 점수 (하루 1개씩 쌓인 기록)
-    put("market_score", [[h["date"].replace("-", ""), h["score"]] for h in score_hist if h.get("score") is not None], 1)
+    real = [[h["date"].replace("-", ""), h["score"]] for h in score_hist if h.get("score") is not None]
+    # 200일 평균은 1년 전에도 계산되도록 S&P·나스닥은 2년 치를 따로 받는다
+    long = dict(series)
+    for k, sym, fk in (("spx", ".SPX", "SP500"), ("nasdaq", ".IXIC", "NASDAQCOM")):
+        r = first_ok(lambda s_=sym: cnbc_bars(s_, 760), lambda f_=fk: fred_series(f_, 760))
+        if isinstance(r, list) and len(r) > 300:
+            long[k] = r
+    try:
+        back = backfill_scores(long, out.get("vix"), out.get("move"), out.get("fear_greed"))
+    except Exception as e:
+        back = []
+        errors.append(f"점수 거꾸로 계산 실패: {e}")
+    first_real = real[0][0] if real else "99999999"
+    put("market_score", [p for p in back if p[0] < first_real] + real, 1)
+    put("spx_ma200", ma_line(long.get("spx")))
     # 종목
     for code, rows in stock_rows.items():
         put("stock:" + code, rows if isinstance(rows, list) else {"error": rows.get("error", "")})

@@ -49,7 +49,7 @@ import com.yujh.todaymarket.data.EarningsText
 fun DetailScreen(
     data: MarketData?, loading: Boolean, error: String?, settings: AppSettings, charts: Charts?,
     refreshNote: String? = null,
-    onRefresh: () -> Unit, onOpenSettings: () -> Unit,
+    onRefresh: () -> Unit, onOpenSettings: () -> Unit, onOpenRanking: () -> Unit = {},
 ) {
     CompositionLocalProvider(LocalCharts provides charts) {
     LazyColumn(
@@ -61,6 +61,13 @@ fun DetailScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item { TopBar(data, loading, onRefresh, onOpenSettings) }
+        item {
+            Text(
+                "🏆 미국·국내 종목 순위 보기 (실시간)  ›", color = Palette.Fg, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Palette.Card)
+                    .clickable(onClick = onOpenRanking).padding(horizontal = 14.dp, vertical = 12.dp),
+            )
+        }
         if (error != null) item { Notice(error) }
         if (refreshNote != null) item { Notice(refreshNote) }
         if (data == null) {

@@ -385,11 +385,83 @@ def naver_research_keys():
     return json.dumps((j.get("researches") or [])[:1], ensure_ascii=False)[:400]
 
 
-TESTS = [
-    ("실적", "발행된 실적 정보", earnings_check),
-    ("실적", "Nasdaq 서프라이즈 행 구조", nasdaq_surprise_row),
-    ("실적", "네이버 리포트 구조", naver_research_keys),
+def nv(path):
+    r = S.get("https://api.stock.naver.com/stock/" + path, timeout=TIMEOUT,
+              headers={"Referer": "https://m.stock.naver.com/", "Accept": "application/json"})
+    if r.status_code != 200:
+        return f"HTTP {r.status_code}"
+    j = r.json()
+    items = j.get("stocks") if isinstance(j, dict) else j
+    if isinstance(j, dict) and items is None:
+        return f"keys={list(j.keys())[:10]}"
+    if not items:
+        return "빈 목록"
+    x = items[0]
+    keys = list(x.keys())
+    pick = {k: x.get(k) for k in ("stockName", "symbolCode", "reutersCode", "closePrice", "fluctuationsRatio",
+                                   "compareToPreviousClosePrice", "accumulatedTradingValue", "accumulatedTradingVolume",
+                                   "marketValue", "stockExchangeType") if k in x}
+    total = j.get("totalCount") if isinstance(j, dict) else None
+    return f"{len(items)}개 total={total} 첫={pick} keys={keys[:30]}"[:700]
+
+
+CANDS = [
+    "nation/USA/priceTop?page=1&pageSize=20",
+    "nation/USA/up?page=1&pageSize=20",
+    "nation/USA/down?page=1&pageSize=20",
+    "nation/USA/quantTop?page=1&pageSize=20",
+    "exchange/NASDAQ/quantTop?page=1&pageSize=20",
+    "exchange/NASDAQ/volume?page=1&pageSize=20",
+    "exchange/NASDAQ/tradeVolume?page=1&pageSize=20",
+    "exchange/NASDAQ/volumeTop?page=1&pageSize=20&sort=volume",
+    "exchange/NASDAQ/dealVolume?page=1&pageSize=20",
+    "exchange/NASDAQ/tradeQuantity?page=1&pageSize=20",
+    "exchange/NASDAQ/quant?page=1&pageSize=20",
+    "nation/USA/popular?page=1&pageSize=20",
+    "nation/USA/popularSearch?page=1&pageSize=20",
+    "nation/USA/searchTop?page=1&pageSize=20",
+    "nation/USA/popularStocks?page=1&pageSize=20",
 ]
+
+
+def other(url):
+    r = S.get(url, timeout=TIMEOUT, headers={"Referer": "https://m.stock.naver.com/"})
+    return f"HTTP {r.status_code} {r.text[:400]}"
+
+
+def front_api():
+    r = S.get("https://m.stock.naver.com/worldstock/home/USA/marketValue/NASDAQ", timeout=TIMEOUT)
+    paths = sorted(set(re.findall(r'api\.stock\.naver\.com/[A-Za-z0-9_/{}.$-]+', r.text)))
+    return f"HTTP {r.status_code} {paths[:30]}"[:900]
+
+
+def kr(path):
+    r = S.get("https://m.stock.naver.com/api/" + path, timeout=TIMEOUT,
+              headers={"Referer": "https://m.stock.naver.com/", "Accept": "application/json"})
+    if r.status_code != 200:
+        return f"HTTP {r.status_code}"
+    j = r.json()
+    items = j.get("stocks") if isinstance(j, dict) else j
+    if isinstance(j, dict) and items is None:
+        return f"keys={list(j.keys())[:10]} {str(j)[:200]}"
+    if not items:
+        return "빈 목록"
+    x = items[0]
+    pick = {k: x.get(k) for k in ("stockName", "itemCode", "closePrice", "fluctuationsRatio",
+                                   "compareToPreviousClosePrice", "accumulatedTradingValue", "accumulatedTradingVolume",
+                                   "marketValue") if k in x}
+    total = j.get("totalCount") if isinstance(j, dict) else None
+    return f"{len(items)}개 total={total} 첫={pick} keys={list(x.keys())[:25]}"[:600]
+
+
+KR = ["stocks/marketValue/KOSPI?page=1&pageSize=20", "stocks/marketValue/KOSDAQ?page=1&pageSize=20",
+      "stocks/marketValue/ALL?page=1&pageSize=20",
+      "stocks/up/KOSPI?page=1&pageSize=20", "stocks/down/KOSDAQ?page=1&pageSize=20",
+      "stocks/priceTop/KOSPI?page=1&pageSize=20", "stocks/quantTop/KOSPI?page=1&pageSize=20",
+      "stocks/searchTop/KOSPI?page=1&pageSize=20", "stocks/searchTop?page=1&pageSize=20",
+      "stocks/popular?page=1&pageSize=20"]
+
+TESTS = [("국내순위", c, (lambda c=c: kr(c))) for c in KR]
 
 
 def main():

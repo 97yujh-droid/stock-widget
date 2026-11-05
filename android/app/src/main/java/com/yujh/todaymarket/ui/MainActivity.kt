@@ -168,14 +168,19 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 var screen by remember { mutableStateOf("detail") }
-                BackHandler(enabled = screen == "settings") { screen = "detail" }
+                BackHandler(enabled = screen != "detail") { screen = "detail" }
 
                 // 설정한 글씨 크기를 앱 전체에 적용
                 val base = LocalDensity.current
                 CompositionLocalProvider(
                     LocalDensity provides Density(base.density, base.fontScale * vm.settings.fontScale),
                 ) {
-                    if (screen == "settings") {
+                    if (screen == "ranking") {
+                        RankingScreen(
+                            data = vm.data, settings = vm.settings,
+                            onChange = vm::updateSettings, onBack = { screen = "detail" },
+                        )
+                    } else if (screen == "settings") {
                         SettingsScreen(
                             data = vm.data, settings = vm.settings,
                             onChange = vm::updateSettings, onBack = { screen = "detail" },
@@ -185,6 +190,7 @@ class MainActivity : ComponentActivity() {
                             data = vm.data, loading = vm.loading, error = vm.error,
                             settings = vm.settings, charts = vm.charts,
                             onRefresh = vm::refreshNow, refreshNote = vm.refreshNote, onOpenSettings = { screen = "settings" },
+                            onOpenRanking = { screen = "ranking" },
                         )
                     }
                 }

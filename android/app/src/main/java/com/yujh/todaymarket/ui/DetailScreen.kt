@@ -153,9 +153,11 @@ private fun MarketScoreCard(data: MarketData) {
             }
         }
         ZoneBar(ms.score)
-        ChartBlock("market_score")
+        ChartBlock("market_score", title = "날씨 점수", height = 110.dp,
+            note = "지난 기록이 없는 날은 그날의 과거 숫자로 다시 계산한 점수예요")
         if (!ms.comment.isNullOrBlank()) AiBox(ms.comment)
-        ms.items.forEach { ScoreRow(it, SCORE_GUIDE[it.key]) }
+        Text("요소별 점수와 추세", color = Palette.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+        ms.items.forEach { ScoreRow(it, SCORE_GUIDE[it.key], chart = true) }
         Text("일부 항목은 하루 1번(추세·하이일드·금리차), 한 달 1번(Margin Debt) 바뀌어요. 빈 항목은 빼고 100점 만점으로 환산해요.",
             color = Palette.Sub, fontSize = 11.sp)
     }
@@ -190,7 +192,7 @@ private fun AiBox(text: String) {
 }
 
 @Composable
-private fun ScoreRow(item: ScoreItem, guide: IndGuide? = null) {
+private fun ScoreRow(item: ScoreItem, guide: IndGuide? = null, chart: Boolean = false) {
     Column(Modifier.padding(vertical = 5.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(item.name, color = Palette.Fg, fontSize = 13.sp, fontWeight = FontWeight.Bold,
@@ -213,6 +215,17 @@ private fun ScoreRow(item: ScoreItem, guide: IndGuide? = null) {
                 if (item.score == null) "  빠짐" else "  ${item.score}점 → +${String.format("%.1f", item.points ?: 0.0)}",
                 color = Palette.Sub, fontSize = 11.sp,
             )
+        }
+        if (chart) {
+            Spacer(Modifier.height(4.dp))
+            when (item.key) {
+                "trend" -> ChartBlock("spx", overlayKey = "spx_ma200", overlayName = "200일 평균 (선이 점선 위면 상승장)",
+                    title = "S&P500", height = 80.dp)
+                "hy" -> ChartBlock("hy_spread", height = 72.dp)
+                "dxy", "usdkrw" -> ChartBlock(item.key, note = "점수는 그래프의 1달 변화로 매겨요", height = 72.dp)
+                "margin_debt" -> ChartBlock("margin_debt", note = "그래프는 잔고(조 달러)", height = 72.dp)
+                else -> ChartBlock(item.key, height = 72.dp)
+            }
         }
     }
 }
@@ -271,7 +284,7 @@ private fun StockCard(s: Stock, settings: AppSettings) {
             Text(if (open) "접기 ▴" else if (settings.showStockScore) "종목 점수 ${s.score ?: "-"} · 항목별 보기 ▾" else "자세히 보기 ▾",
                 color = Palette.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
         }
-        ChartBlock("stock:" + s.code)
+        ChartBlock("stock:" + s.code, height = 100.dp)
         if (open) {
             if (!s.comment.isNullOrBlank()) AiBox(s.comment)
             if (settings.showStockScore) s.scoreItems.forEach { ScoreRow(it, STOCK_GUIDE[it.key]) }

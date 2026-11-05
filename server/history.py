@@ -35,8 +35,8 @@ def naver_chart_api(kind, code):
     return out
 
 
-def cnbc_bars(sym):
-    start = (now_kst() - timedelta(days=450)).strftime("%Y%m%d000000")
+def cnbc_bars(sym, days=450):
+    start = (now_kst() - timedelta(days=days)).strftime("%Y%m%d000000")
     end = now_kst().strftime("%Y%m%d235959")
     j = get(f"https://ts-api.cnbc.com/harmony/app/bars/{quote(sym)}/1D/{start}/{end}"
             "/adjusted/EST5EDT.json").json()

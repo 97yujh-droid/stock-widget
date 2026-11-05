@@ -38,6 +38,8 @@ class MarketViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var settings by mutableStateOf(SettingsStore.load(app))
         private set
+    var charts by mutableStateOf(Repository.loadCachedCharts(app))
+        private set
 
     private var widgetJob: Job? = null
 
@@ -59,6 +61,8 @@ class MarketViewModel(app: Application) : AndroidViewModel(app) {
             } finally {
                 loading = false
             }
+            // 그래프 숫자는 따로 받는다 (실패해도 지난 그래프를 그대로 보여줌)
+            runCatching { charts = Repository.fetchCharts(getApplication()) }
         }
     }
 
@@ -98,7 +102,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         DetailScreen(
                             data = vm.data, loading = vm.loading, error = vm.error,
-                            settings = vm.settings,
+                            settings = vm.settings, charts = vm.charts,
                             onRefresh = vm::refresh, onOpenSettings = { screen = "settings" },
                         )
                     }

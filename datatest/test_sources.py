@@ -385,11 +385,54 @@ def naver_research_keys():
     return json.dumps((j.get("researches") or [])[:1], ensure_ascii=False)[:400]
 
 
-TESTS = [
-    ("실적", "발행된 실적 정보", earnings_check),
-    ("실적", "Nasdaq 서프라이즈 행 구조", nasdaq_surprise_row),
-    ("실적", "네이버 리포트 구조", naver_research_keys),
+def nv(path):
+    r = S.get("https://api.stock.naver.com/stock/" + path, timeout=TIMEOUT,
+              headers={"Referer": "https://m.stock.naver.com/", "Accept": "application/json"})
+    if r.status_code != 200:
+        return f"HTTP {r.status_code}"
+    j = r.json()
+    items = j.get("stocks") if isinstance(j, dict) else j
+    if isinstance(j, dict) and items is None:
+        return f"keys={list(j.keys())[:10]}"
+    if not items:
+        return "빈 목록"
+    x = items[0]
+    keys = list(x.keys())
+    pick = {k: x.get(k) for k in ("stockName", "symbolCode", "reutersCode", "closePrice", "fluctuationsRatio",
+                                   "compareToPreviousClosePrice", "accumulatedTradingValue", "accumulatedTradingVolume",
+                                   "marketValue", "stockExchangeType") if k in x}
+    total = j.get("totalCount") if isinstance(j, dict) else None
+    return f"{len(items)}개 total={total} 첫={pick} keys={keys[:30]}"[:700]
+
+
+CANDS = [
+    "exchange/NASDAQ/marketValue?page=1&pageSize=20",
+    "exchange/NYSE/marketValue?page=1&pageSize=20",
+    "exchange/AMEX/marketValue?page=1&pageSize=20",
+    "exchange/USA/marketValue?page=1&pageSize=20",
+    "nation/USA/marketValue?page=1&pageSize=20",
+    "exchange/NASDAQ/up?page=1&pageSize=20",
+    "exchange/NASDAQ/down?page=1&pageSize=20",
+    "exchange/NASDAQ/priceTop?page=1&pageSize=20",
+    "exchange/NASDAQ/volumeTop?page=1&pageSize=20",
+    "exchange/NASDAQ/tradingVolume?page=1&pageSize=20",
+    "exchange/NASDAQ/tradingValue?page=1&pageSize=20",
+    "exchange/NASDAQ/dealTradingValue?page=1&pageSize=20",
+    "exchange/NASDAQ/accumulatedTradingValue?page=1&pageSize=20",
+    "exchange/NASDAQ/amountTop?page=1&pageSize=20",
+    "exchange/NASDAQ/popular?page=1&pageSize=20",
+    "exchange/NASDAQ/searchTop?page=1&pageSize=20",
+    "exchange/NASDAQ/popularSearch?page=1&pageSize=20",
 ]
+
+
+def front_api():
+    r = S.get("https://m.stock.naver.com/worldstock/home/USA/marketValue/NASDAQ", timeout=TIMEOUT)
+    paths = sorted(set(re.findall(r'api\.stock\.naver\.com/[A-Za-z0-9_/{}.$-]+', r.text)))
+    return f"HTTP {r.status_code} {paths[:30]}"[:900]
+
+
+TESTS = [("순위", c, (lambda c=c: nv(c))) for c in CANDS] + [("순위", "화면 코드 속 API 주소", front_api)]
 
 
 def main():

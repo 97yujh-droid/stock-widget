@@ -47,6 +47,7 @@ import com.yujh.todaymarket.data.Stock
 @Composable
 fun DetailScreen(
     data: MarketData?, loading: Boolean, error: String?, settings: AppSettings, charts: Charts?,
+    refreshNote: String? = null,
     onRefresh: () -> Unit, onOpenSettings: () -> Unit,
 ) {
     CompositionLocalProvider(LocalCharts provides charts) {
@@ -60,6 +61,7 @@ fun DetailScreen(
     ) {
         item { TopBar(data, loading, onRefresh, onOpenSettings) }
         if (error != null) item { Notice(error) }
+        if (refreshNote != null) item { Notice(refreshNote) }
         if (data == null) {
             item { Notice(if (loading) "데이터를 받아오는 중이에요…" else "아직 데이터가 없어요. ↻ 를 눌러 주세요.") }
             return@LazyColumn

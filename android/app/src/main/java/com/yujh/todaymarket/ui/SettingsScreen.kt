@@ -276,7 +276,7 @@ private fun WatchlistEditor(stocks: List<Stock>, settings: AppSettings, onChange
 
     Group("관심 종목 추가") {
         if (editingToken) {
-            Text("종목을 추가·삭제하려면 GitHub 열쇠를 한 번 넣어 주세요. 열쇠는 이 휴대폰에만 저장돼요.",
+            Text("종목 추가·삭제, Margin Debt 입력, ↻ 바로 새로고침에 GitHub 열쇠가 필요해요. 열쇠는 이 휴대폰에만 저장돼요. 열쇠 권한: Contents 읽기·쓰기 + Actions 읽기·쓰기",
                 color = Palette.Sub, fontSize = 12.sp)
             OutlinedTextField(
                 value = tokenInput, onValueChange = { tokenInput = it.trim() },
@@ -303,6 +303,10 @@ private fun WatchlistEditor(stocks: List<Stock>, settings: AppSettings, onChange
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("GitHub 연결됨 ✓", color = Palette.Accent, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            }
+            Text("↻ 바로 새로고침은 열쇠에 Actions 읽기·쓰기 권한도 있어야 해요.", color = Palette.Faint, fontSize = 11.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.weight(1f))
                 SmallButton("열쇠 바꾸기") { editingToken = true }
                 SmallButton("연결 끊기") { onChange(settings.copy(githubToken = "")); editingToken = true }
             }

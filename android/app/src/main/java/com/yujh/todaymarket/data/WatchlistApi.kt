@@ -93,6 +93,25 @@ object WatchlistApi {
             config.put("stocks", change(config.getJSONArray("stocks")))
         }
 
+    // ---------------- 서버 바로 실행 ----------------
+
+    /** 서버에 "지금 한 번 돌아줘" 요청. 열쇠에 Actions 읽기·쓰기 권한이 있어야 한다. */
+    suspend fun runServer(token: String) = withContext(Dispatchers.IO) {
+        try {
+            request("https://api.github.com/repos/97yujh-droid/stock-widget/actions/workflows/server.yml/dispatches",
+                "POST", token, JSONObject().put("ref", "main").toString())
+        } catch (e: Exception) {
+            val m = e.message ?: ""
+            throw Exception(
+                when {
+                    "401" in m -> "GitHub 열쇠가 맞지 않아요."
+                    "403" in m || "404" in m -> "열쇠에 Actions(서버 실행) 권한이 없어요. 설정 안내를 따라 권한을 켜 주세요."
+                    else -> m.ifBlank { "알 수 없는 오류" }
+                },
+            )
+        }
+    }
+
     // ---------------- Margin Debt 직접 입력 ----------------
 
     /** 저장된 월별 숫자 (예: "2026-09" → 1480054, 단위 백만 달러) */

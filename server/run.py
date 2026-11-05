@@ -10,6 +10,7 @@ from collect import ROOT, collect, iso, now_kst
 from history import history_for, market_series, valuation_for
 from scoring import market_score, stock_score
 from summarize import explain_scores, summarize_issues, summarize_market
+from charts import build_charts, save_charts
 from publish import build, is_summary_time, load_previous, save
 
 
@@ -42,9 +43,10 @@ def main():
     series = market_series()
     bench = {"KR": series["kospi"], "US": series["spx"]}
     mscore = market_score(data, series)
-    sscores, vals, diag = {}, {}, []
+    sscores, vals, diag, stock_rows = {}, {}, [], {}
     for s in config["stocks"]:
         rows = history_for(s)
+        stock_rows[s["code"]] = rows
         val = valuation_for(s)
         vals[s["name"]] = val
         senti = issues.get(s["name"], {}).get("sentiment")
@@ -66,6 +68,13 @@ def main():
                    meta={"took_sec": round(time.time() - t0, 1), "ai_model": config["ai"]["model"]})
     size = save(result)
     rep.append(f"📦 결과 파일 public/latest.json 저장 ({size / 1024:.1f}KB)")
+    try:
+        charts, cerr = build_charts(config, series, stock_rows, result["market_score"].get("history", []))
+        csize = save_charts(charts)
+        rep.append(f"📈 그래프 파일 public/charts.json 저장 ({csize / 1024:.1f}KB, {len(charts['series'])}개)")
+        rep += [f"⚠️ 그래프 실패 {e}" for e in cerr]
+    except Exception as e:
+        rep.append(f"❌ 그래프 파일 실패: {e}")
 
     # ---- 보고서 ----
     rep += ["", f"### 시장 점수: **{mscore['score']}점 {mscore.get('icon', '')} {mscore.get('name', '')}**",

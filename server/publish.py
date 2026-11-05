@@ -80,7 +80,7 @@ def score_history(prev, score, now):
     hist = [h for h in prev.get("market_score", {}).get("history", []) if h.get("date")]
     today = now.strftime("%Y-%m-%d")
     hist = [h for h in hist if h["date"] != today] + [{"date": today, "score": score}]
-    return hist[-30:]
+    return hist[-400:]   # 1년 넘게 보관 (그래프용)
 
 
 def build(config, data, issues, market_lines, mscore, mcomment, sscores, scomments, prev, meta):

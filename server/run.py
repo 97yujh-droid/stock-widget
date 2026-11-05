@@ -10,6 +10,7 @@ from collect import ROOT, collect, iso, now_kst
 from history import history_for, market_series, valuation_for
 from scoring import market_score, stock_score
 from summarize import explain_scores, summarize_issues, summarize_market
+from earnings import earnings_lines, get_earnings
 from charts import build_charts, save_charts
 from publish import build, is_summary_time, load_previous, save
 
@@ -29,6 +30,14 @@ def main():
         issues = {}
         rep.append(f"❌ 종목 이슈 실패: {e}")
     prev = load_previous(config)
+    try:
+        earnings, eerr = get_earnings(config, prev)
+        data["earnings"] = earnings
+        data["earnings_lines"] = earnings_lines(config, earnings)
+        rep += [f"⚠️ 실적 정보 {e}" for e in eerr]
+    except Exception as e:
+        data["earnings"], data["earnings_lines"] = {}, []
+        rep.append(f"❌ 실적 정보 실패: {e}")
     force = os.environ.get("FORCE_SUMMARY", "").lower() == "true"
     market_lines = []
     if force or is_summary_time(config) or not (prev.get("market_summary") or {}).get("lines"):

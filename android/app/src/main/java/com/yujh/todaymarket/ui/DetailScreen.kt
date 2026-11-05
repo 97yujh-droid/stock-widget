@@ -43,6 +43,7 @@ import com.yujh.todaymarket.widget.isOld
 import com.yujh.todaymarket.data.MarketData
 import com.yujh.todaymarket.data.ScoreItem
 import com.yujh.todaymarket.data.Stock
+import com.yujh.todaymarket.data.EarningsText
 
 @Composable
 fun DetailScreen(
@@ -269,6 +270,7 @@ private fun StockCard(s: Stock, settings: AppSettings) {
             }
             Text(s.issue ?: s.error ?: "-", color = Palette.Fg.copy(alpha = 0.85f), fontSize = 13.sp,
                 modifier = Modifier.padding(top = 4.dp))
+            EarningsLine(s)
             val ret = settings.returnOf(s)
             if (ret != null) {
                 val h = settings.holdings[s.code]
@@ -288,6 +290,12 @@ private fun StockCard(s: Stock, settings: AppSettings) {
         if (open) {
             if (!s.comment.isNullOrBlank()) AiBox(s.comment)
             if (settings.showStockScore) s.scoreItems.forEach { ScoreRow(it, STOCK_GUIDE[it.key]) }
+            s.earnings?.reports?.takeIf { it.isNotEmpty() }?.let { reps ->
+                Text("최근 증권사 리포트", color = Palette.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                reps.forEach { r ->
+                    Text("· ${r.title} (${listOfNotNull(r.broker, r.date).joinToString(" ")})", color = Palette.Sub, fontSize = 12.sp)
+                }
+            }
             if (s.news.isNotEmpty()) {
                 Text("근거 뉴스", color = Palette.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
                 s.news.forEach { n ->
@@ -295,6 +303,29 @@ private fun StockCard(s: Stock, settings: AppSettings) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun EarningsLine(s: Stock) {
+    val e = s.earnings ?: return
+    val up = EarningsText.upcoming(e)
+    val left = EarningsText.daysLeft(e)
+    val last = EarningsText.last(e)
+    val fresh = EarningsText.justReported(e)
+    Column(Modifier.padding(top = 4.dp)) {
+        if (fresh && last != null) {
+            Text("📢 " + last.replace("지난 실적", "실적 발표됨"), color = changeColor(e.last?.surprisePct),
+                fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+        if (up != null) {
+            val soon = left != null && left <= 3
+            Text((if (soon) "⏰ " else "🗓 ") + up, color = if (soon) Color(0xFFE0883C) else Palette.Fg.copy(alpha = 0.8f),
+                fontSize = 12.sp, fontWeight = if (soon) FontWeight.Bold else FontWeight.Normal)
+        } else if (s.market == "US" && e.note != null) {
+            Text("🗓 다음 실적: ${e.note}", color = Palette.Faint, fontSize = 11.sp)
+        }
+        if (!fresh && last != null) Text(last, color = Palette.Faint, fontSize = 11.sp)
     }
 }
 

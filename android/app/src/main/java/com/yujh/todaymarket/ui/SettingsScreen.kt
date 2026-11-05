@@ -43,6 +43,8 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.yujh.todaymarket.notify.Alerts
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -114,6 +116,7 @@ fun SettingsScreen(
         }
 
         item { MonitorPicker(data, settings, onChange) }
+        item { AlertSettings(settings, onChange) }
         item { WatchlistEditor(stocks, settings, onChange) }
         item { MarginDebtEditor(settings) }
         item {
@@ -360,6 +363,39 @@ private fun WatchlistEditor(stocks: List<Stock>, settings: AppSettings, onChange
     }
 }
 
+
+// ---------------- 알림 ----------------
+
+@Composable
+private fun AlertSettings(settings: AppSettings, onChange: (AppSettings) -> Unit) {
+    val ctx = LocalContext.current
+    Group("알림") {
+        Toggle("알림 받기", settings.alertsOn) { onChange(settings.copy(alertsOn = it)) }
+        if (settings.alertsOn) {
+            if (!Alerts.canNotify(ctx)) {
+                Text("휴대폰에서 알림이 꺼져 있어요. 휴대폰 설정 → 앱 → 오늘의 시장 → 알림을 켜 주세요.",
+                    color = Color(0xFFE0883C), fontSize = 12.sp)
+            }
+            val pct = settings.alertMovePct
+            Text(if (pct <= 0f) "관심 종목 급등락 알림: 끔" else "관심 종목이 하루 ±${pct.roundToInt()}% 넘게 움직이면",
+                color = Palette.Fg, fontSize = 14.sp)
+            Slider(
+                value = pct, onValueChange = { onChange(settings.copy(alertMovePct = it.roundToInt().toFloat())) },
+                valueRange = 0f..10f, steps = 9,
+                colors = SliderDefaults.colors(thumbColor = Palette.Accent, activeTrackColor = Palette.Accent),
+            )
+            Text("0으로 두면 꺼져요. 2배(예: ±10%)를 넘으면 한 번 더 알려드려요.", color = Palette.Faint, fontSize = 11.sp)
+            Toggle("VIX가 25·30을 넘거나 내려올 때", settings.alertVix) { onChange(settings.copy(alertVix = it)) }
+            Toggle("마켓 날씨가 바뀔 때 (예: 🌤 → 🌧)", settings.alertZone) { onChange(settings.copy(alertZone = it)) }
+            Toggle("내 종목 실적 발표 하루 전 · 발표 뒤", settings.alertEarnings) { onChange(settings.copy(alertEarnings = it)) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("휴대폰이 30분마다 확인해서 보내요 (최대 30분쯤 늦을 수 있어요).", color = Palette.Faint, fontSize = 11.sp,
+                    modifier = Modifier.weight(1f))
+                SmallButton("시험 알림") { Alerts.test(ctx) }
+            }
+        }
+    }
+}
 
 // ---------------- Margin Debt 직접 입력 ----------------
 

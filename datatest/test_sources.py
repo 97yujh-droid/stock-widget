@@ -435,12 +435,33 @@ def front_api():
     return f"HTTP {r.status_code} {paths[:30]}"[:900]
 
 
-TESTS = [("순위", c, (lambda c=c: nv(c))) for c in CANDS] + [
-    ("순위", "인기1", lambda: other("https://m.stock.naver.com/api/home/worldstock/popular?nationType=USA")),
-    ("순위", "인기2", lambda: other("https://api.stock.naver.com/stock/popular/worldstock?nationType=USA&page=1&pageSize=10")),
-    ("순위", "인기3", lambda: other("https://m.stock.naver.com/front-api/search/popular?nationType=USA")),
-    ("순위", "인기4", lambda: other("https://api.stock.naver.com/popular/stock?nationType=USA")),
-]
+def kr(path):
+    r = S.get("https://m.stock.naver.com/api/" + path, timeout=TIMEOUT,
+              headers={"Referer": "https://m.stock.naver.com/", "Accept": "application/json"})
+    if r.status_code != 200:
+        return f"HTTP {r.status_code}"
+    j = r.json()
+    items = j.get("stocks") if isinstance(j, dict) else j
+    if isinstance(j, dict) and items is None:
+        return f"keys={list(j.keys())[:10]} {str(j)[:200]}"
+    if not items:
+        return "빈 목록"
+    x = items[0]
+    pick = {k: x.get(k) for k in ("stockName", "itemCode", "closePrice", "fluctuationsRatio",
+                                   "compareToPreviousClosePrice", "accumulatedTradingValue", "accumulatedTradingVolume",
+                                   "marketValue") if k in x}
+    total = j.get("totalCount") if isinstance(j, dict) else None
+    return f"{len(items)}개 total={total} 첫={pick} keys={list(x.keys())[:25]}"[:600]
+
+
+KR = ["stocks/marketValue/KOSPI?page=1&pageSize=20", "stocks/marketValue/KOSDAQ?page=1&pageSize=20",
+      "stocks/marketValue/ALL?page=1&pageSize=20",
+      "stocks/up/KOSPI?page=1&pageSize=20", "stocks/down/KOSDAQ?page=1&pageSize=20",
+      "stocks/priceTop/KOSPI?page=1&pageSize=20", "stocks/quantTop/KOSPI?page=1&pageSize=20",
+      "stocks/searchTop/KOSPI?page=1&pageSize=20", "stocks/searchTop?page=1&pageSize=20",
+      "stocks/popular?page=1&pageSize=20"]
+
+TESTS = [("국내순위", c, (lambda c=c: kr(c))) for c in KR]
 
 
 def main():

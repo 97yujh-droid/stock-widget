@@ -309,15 +309,66 @@ def naver_kospi_investors():
     return " || ".join(out)
 
 
+NAS_H = {"User-Agent": UA, "Accept": "application/json, text/plain, */*",
+         "Origin": "https://www.nasdaq.com", "Referer": "https://www.nasdaq.com/"}
+
+
+def charts_check():
+    j = get("https://97yujh-droid.github.io/stock-widget/charts.json").json()["series"]
+    ms = j.get("market_score", [])
+    return (f"{len(j)}개, market_score {len(ms)}점 {ms[:2]} ... {ms[-2:]}, "
+            f"spx_ma200 {len(j.get('spx_ma200', []))}점, vix {len(j.get('vix', []))}, fg {len(j.get('fear_greed', []))}")
+
+
+def nasdaq_date(sym):
+    j = get(f"https://api.nasdaq.com/api/analyst/{sym}/earnings-date", headers=NAS_H).json()
+    return json.dumps(j.get("data"), ensure_ascii=False)[:300]
+
+
+def nasdaq_surprise(sym):
+    j = get(f"https://api.nasdaq.com/api/company/{sym}/earnings-surprise", headers=NAS_H).json()
+    return json.dumps(j.get("data"), ensure_ascii=False)[:300]
+
+
+def nasdaq_calendar():
+    d = (datetime.now(KST) + timedelta(days=1)).strftime("%Y-%m-%d")
+    j = get(f"https://api.nasdaq.com/api/calendar/earnings?date={d}", headers=NAS_H).json()
+    rows = (j.get("data") or {}).get("rows") or []
+    return f"{d} {len(rows)}개: " + json.dumps(rows[:1], ensure_ascii=False)[:250]
+
+
+def cnbc_earn_fields(sym):
+    url = ("https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol"
+           f"?symbols={sym}&requestMethod=extended&noform=1&partnerId=2&fund=1&exthrs=1&output=json")
+    q = get(url).json()["ExtendedQuoteResult"]["ExtendedQuote"][0]
+    flat = json.dumps(q, ensure_ascii=False)
+    keys = re.findall(r'"([^"]*(?:arn|EPS|eps)[^"]*)":\s*"?([^",}]*)', flat)
+    return str(keys[:12])[:300]
+
+
+def naver_world_integration(code):
+    j = get(f"https://api.stock.naver.com/stock/{code}/integration").json()
+    flat = json.dumps(j, ensure_ascii=False)
+    hits = [m for m in re.findall(r'"([^"]*(?:arn|ettle|실적|발표)[^"]*)"', flat)][:15]
+    return f"keys={list(j.keys())[:12]} hits={hits}"[:300]
+
+
+def naver_kr_earn(code):
+    j = get(f"https://m.stock.naver.com/api/stock/{code}/integration").json()
+    flat = json.dumps(j, ensure_ascii=False)
+    hits = re.findall(r'"([^"]*(?:실적|발표|arn)[^"]*)"', flat)[:15]
+    return f"keys={list(j.keys())[:14]} hits={hits}"[:300]
+
+
 TESTS = [
-    ("모니터링", "CNBC 1차 (WTI·나스닥선물·SOX·엔·2년·금·MOVE)",
-     lambda: cnbc_each(["@CL.1", "@ND.1", ".SOX", "JPY=", "US2Y", "@GC.1", ".MOVE"])),
-    ("모니터링", "CNBC 2차 (다른 기호 후보)",
-     lambda: cnbc_each(["CL.1", "NQ.1", "SOX", "USDJPY", "GC.1", "MOVE", ".MOVE.IDX"])),
-    ("모니터링", "기대 인플레이션 (FRED T10YIE)", lambda: fred_api("T10YIE")),
-    ("모니터링", "외국인 순매수 (네이버)", naver_kospi_investors),
-    ("경제지표", "경제 일정표 (ForexFactory)", ff_calendar),
-    ("경제지표", "지표 뉴스 (구글)", lambda: gnews("미국 CPI")),
+    ("그래프", "charts.json 확인", charts_check),
+    ("실적", "Nasdaq 다음 실적일 NVDA", lambda: nasdaq_date("NVDA")),
+    ("실적", "Nasdaq 다음 실적일 TSLA", lambda: nasdaq_date("TSLA")),
+    ("실적", "Nasdaq 실적 서프라이즈 NVDA", lambda: nasdaq_surprise("NVDA")),
+    ("실적", "Nasdaq 실적 달력 (내일)", nasdaq_calendar),
+    ("실적", "CNBC 확장 시세 실적 필드", lambda: cnbc_earn_fields("NVDA")),
+    ("실적", "네이버 해외 종목 통합", lambda: naver_world_integration("NVDA.O")),
+    ("실적", "네이버 국내 종목 통합 (삼성전자)", lambda: naver_kr_earn("005930")),
 ]
 
 

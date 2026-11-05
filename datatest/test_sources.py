@@ -406,24 +406,27 @@ def nv(path):
 
 
 CANDS = [
-    "exchange/NASDAQ/marketValue?page=1&pageSize=20",
-    "exchange/NYSE/marketValue?page=1&pageSize=20",
-    "exchange/AMEX/marketValue?page=1&pageSize=20",
-    "exchange/USA/marketValue?page=1&pageSize=20",
-    "nation/USA/marketValue?page=1&pageSize=20",
-    "exchange/NASDAQ/up?page=1&pageSize=20",
-    "exchange/NASDAQ/down?page=1&pageSize=20",
-    "exchange/NASDAQ/priceTop?page=1&pageSize=20",
-    "exchange/NASDAQ/volumeTop?page=1&pageSize=20",
-    "exchange/NASDAQ/tradingVolume?page=1&pageSize=20",
-    "exchange/NASDAQ/tradingValue?page=1&pageSize=20",
-    "exchange/NASDAQ/dealTradingValue?page=1&pageSize=20",
-    "exchange/NASDAQ/accumulatedTradingValue?page=1&pageSize=20",
-    "exchange/NASDAQ/amountTop?page=1&pageSize=20",
-    "exchange/NASDAQ/popular?page=1&pageSize=20",
-    "exchange/NASDAQ/searchTop?page=1&pageSize=20",
-    "exchange/NASDAQ/popularSearch?page=1&pageSize=20",
+    "nation/USA/priceTop?page=1&pageSize=20",
+    "nation/USA/up?page=1&pageSize=20",
+    "nation/USA/down?page=1&pageSize=20",
+    "nation/USA/quantTop?page=1&pageSize=20",
+    "exchange/NASDAQ/quantTop?page=1&pageSize=20",
+    "exchange/NASDAQ/volume?page=1&pageSize=20",
+    "exchange/NASDAQ/tradeVolume?page=1&pageSize=20",
+    "exchange/NASDAQ/volumeTop?page=1&pageSize=20&sort=volume",
+    "exchange/NASDAQ/dealVolume?page=1&pageSize=20",
+    "exchange/NASDAQ/tradeQuantity?page=1&pageSize=20",
+    "exchange/NASDAQ/quant?page=1&pageSize=20",
+    "nation/USA/popular?page=1&pageSize=20",
+    "nation/USA/popularSearch?page=1&pageSize=20",
+    "nation/USA/searchTop?page=1&pageSize=20",
+    "nation/USA/popularStocks?page=1&pageSize=20",
 ]
+
+
+def other(url):
+    r = S.get(url, timeout=TIMEOUT, headers={"Referer": "https://m.stock.naver.com/"})
+    return f"HTTP {r.status_code} {r.text[:400]}"
 
 
 def front_api():
@@ -432,7 +435,12 @@ def front_api():
     return f"HTTP {r.status_code} {paths[:30]}"[:900]
 
 
-TESTS = [("순위", c, (lambda c=c: nv(c))) for c in CANDS] + [("순위", "화면 코드 속 API 주소", front_api)]
+TESTS = [("순위", c, (lambda c=c: nv(c))) for c in CANDS] + [
+    ("순위", "인기1", lambda: other("https://m.stock.naver.com/api/home/worldstock/popular?nationType=USA")),
+    ("순위", "인기2", lambda: other("https://api.stock.naver.com/stock/popular/worldstock?nationType=USA&page=1&pageSize=10")),
+    ("순위", "인기3", lambda: other("https://m.stock.naver.com/front-api/search/popular?nationType=USA")),
+    ("순위", "인기4", lambda: other("https://api.stock.naver.com/popular/stock?nationType=USA")),
+]
 
 
 def main():

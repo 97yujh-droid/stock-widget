@@ -360,15 +360,35 @@ def naver_kr_earn(code):
     return f"keys={list(j.keys())[:14]} hits={hits}"[:300]
 
 
+def earnings_check():
+    j = get("https://97yujh-droid.github.io/stock-widget/latest.json").json()
+    out = []
+    for st in j["stocks"]:
+        e = st.get("earnings") or {}
+        if st["market"] == "US":
+            l = e.get("last") or {}
+            out.append(f"{st['name']}: {e.get('next_date')} {e.get('timing')} eps{e.get('eps_forecast')} "
+                       f"last {l.get('date')} {l.get('eps')}/{l.get('forecast')} {l.get('surprise_pct')}% {e.get('note') or ''}")
+        else:
+            r = (e.get("reports") or [{}])[0]
+            out.append(f"{st['name']}: 리포트 {r.get('title', '')[:30]} / {r.get('broker')} / {r.get('date')}")
+    return " ‖ ".join(out)[:2500]
+
+
+def nasdaq_surprise_row():
+    j = get("https://api.nasdaq.com/api/company/NVDA/earnings-surprise", headers=NAS_H).json()
+    return json.dumps(j["data"]["earningsSurpriseTable"]["rows"][:1], ensure_ascii=False)
+
+
+def naver_research_keys():
+    j = get("https://m.stock.naver.com/api/stock/005930/integration").json()
+    return json.dumps((j.get("researches") or [])[:1], ensure_ascii=False)[:400]
+
+
 TESTS = [
-    ("그래프", "charts.json 확인", charts_check),
-    ("실적", "Nasdaq 다음 실적일 NVDA", lambda: nasdaq_date("NVDA")),
-    ("실적", "Nasdaq 다음 실적일 TSLA", lambda: nasdaq_date("TSLA")),
-    ("실적", "Nasdaq 실적 서프라이즈 NVDA", lambda: nasdaq_surprise("NVDA")),
-    ("실적", "Nasdaq 실적 달력 (내일)", nasdaq_calendar),
-    ("실적", "CNBC 확장 시세 실적 필드", lambda: cnbc_earn_fields("NVDA")),
-    ("실적", "네이버 해외 종목 통합", lambda: naver_world_integration("NVDA.O")),
-    ("실적", "네이버 국내 종목 통합 (삼성전자)", lambda: naver_kr_earn("005930")),
+    ("실적", "발행된 실적 정보", earnings_check),
+    ("실적", "Nasdaq 서프라이즈 행 구조", nasdaq_surprise_row),
+    ("실적", "네이버 리포트 구조", naver_research_keys),
 ]
 
 

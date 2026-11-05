@@ -62,7 +62,10 @@ def naver_reports(code):
         title = r.get("tit") or r.get("title") or max((v for v in r.values() if isinstance(v, str)), key=len, default="")
         broker = r.get("bnm") or r.get("brokerName") or ""
         date = r.get("wdt") or r.get("writeDate") or ""
-        out.append({"title": title, "broker": broker, "date": str(date)[:10]})
+        date = str(date)
+        if re.fullmatch(r"\d{8}", date):
+            date = f"{date[4:6]}/{date[6:8]}"
+        out.append({"title": title, "broker": broker, "date": date[:10]})
     return out
 
 

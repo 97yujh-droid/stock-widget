@@ -48,6 +48,8 @@ val GUIDE: Map<String, IndGuide> = mapOf(
         "+5천억↑ 강한 매수 · -5천억↓ 강한 매도 · 며칠 연속인지도 중요", "국내 장중 (오늘 누적)"),
     "put_call" to IndGuide("풋옵션(하락 베팅) ÷ 콜옵션(상승 베팅) 거래량, 미국 개별 주식", "높을수록 겁먹은 사람이 많아요. 너무 높으면 거꾸로 바닥 신호로 봐요",
         "0.5↓ 지나친 낙관 · 0.5~0.7 보통 · 0.7~0.8 불안 · 0.8↑ 공포 (역발상 매수 신호)", "하루 1번, 미국 장 마감 뒤 (한국 아침)"),
+    "put_call_total" to IndGuide("주식 + 지수 + ETF 옵션 전체의 풋 ÷ 콜", "기관의 헤지(보험)까지 포함해서 주식 풋/콜보다 늘 높게 나와요",
+        "0.7↓ 지나친 낙관 · 0.7~0.9 보통 · 0.9~1.0 불안 · 1.0↑ 공포 (역발상 매수 신호)", "하루 1번, 미국 장 마감 뒤 (한국 아침)"),
     "rsi_ndx" to IndGuide("나스닥100 선물의 최근 14일 오른 힘 ÷ 내린 힘 (0~100)", "너무 많이 빠졌는지, 너무 많이 올랐는지",
         "30↓ 과매도 (단기 반등 가능) · 30~70 보통 · 70↑ 과열 (단기 조정 가능)", "하루 1번 (종가 기준)"),
     "rsi_spx" to IndGuide("S&P500의 최근 14일 오른 힘 ÷ 내린 힘 (0~100)", "너무 많이 빠졌는지, 너무 많이 올랐는지",
@@ -89,7 +91,7 @@ fun fmtIndicatorValue(ind: Indicator): String {
         "margin_debt" -> String.format("%+.1f%%", v)
         "us10y", "us2y" -> String.format("%.3f%%", v)
         "bei10" -> String.format("%.2f%%", v)
-        "put_call" -> String.format("%.2f", v)
+        "put_call", "put_call_total" -> String.format("%.2f", v)
         "rsi_ndx", "rsi_spx" -> String.format("%.1f", v)
         "hy_spread" -> String.format("%.2f%%p", v)
         "wti", "gold", "bitcoin", "ethereum" -> "$" + fmtNum(v, if (v >= 1000) 0 else 2)

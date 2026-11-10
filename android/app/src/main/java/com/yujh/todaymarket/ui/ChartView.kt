@@ -68,6 +68,7 @@ val BANDS: Map<String, List<Band>> = mapOf(
     "curve" to listOf(Band(-INF, 0.0, P), Band(0.0, 0.5, O), Band(0.5, INF, G)),
     "wti" to listOf(Band(-INF, 60.0, O), Band(60.0, 80.0, Y), Band(90.0, INF, O)),
     "put_call" to listOf(Band(-INF, 0.5, O), Band(0.5, 0.7, G), Band(0.7, 0.8, Y), Band(0.8, INF, P)),
+    "put_call_total" to listOf(Band(-INF, 0.7, O), Band(0.7, 0.9, G), Band(0.9, 1.0, Y), Band(1.0, INF, P)),
     "rsi_ndx" to listOf(Band(-INF, 30.0, P), Band(30.0, 70.0, G), Band(70.0, INF, O)),
     "rsi_spx" to listOf(Band(-INF, 30.0, P), Band(30.0, 70.0, G), Band(70.0, INF, O)),
     "bei10" to listOf(Band(2.0, 2.5, G), Band(2.7, INF, O)),

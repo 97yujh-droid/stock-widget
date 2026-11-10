@@ -26,6 +26,7 @@ data class AppSettings(
     val alertVix: Boolean = true,       // VIX 25·30 넘을 때
     val alertZone: Boolean = true,      // 마켓 날씨 바뀔 때
     val alertEarnings: Boolean = true,  // 실적 발표 하루 전·발표 뒤
+    val alertSignals: Boolean = true,   // 풋/콜 0.8↑, RSI 30↓·70↑
 )
 
 val DEFAULT_WIDGET_MONITORS = setOf("wti", "nq_fut", "sox", "kospi_foreign")
@@ -66,6 +67,7 @@ object SettingsStore {
             alertVix = p.getBoolean("alertVix", true),
             alertZone = p.getBoolean("alertZone", true),
             alertEarnings = p.getBoolean("alertEarnings", true),
+            alertSignals = p.getBoolean("alertSignals", true),
         )
     }
 
@@ -98,6 +100,7 @@ object SettingsStore {
             .putBoolean("alertVix", s.alertVix)
             .putBoolean("alertZone", s.alertZone)
             .putBoolean("alertEarnings", s.alertEarnings)
+            .putBoolean("alertSignals", s.alertSignals)
             .apply()
     }
 }

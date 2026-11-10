@@ -46,6 +46,12 @@ val GUIDE: Map<String, IndGuide> = mapOf(
         "2.0~2.5% 안정 (연준 목표 2%) · 2.7%↑ 물가 걱정", "하루 1번 (1일 늦게)"),
     "kospi_foreign" to IndGuide("외국인이 산 금액 − 판 금액 (코스피)", "한국 대형주 방향에 가장 큰 영향",
         "+5천억↑ 강한 매수 · -5천억↓ 강한 매도 · 며칠 연속인지도 중요", "국내 장중 (오늘 누적)"),
+    "put_call" to IndGuide("풋옵션(하락 베팅) ÷ 콜옵션(상승 베팅) 거래량, 미국 개별 주식", "높을수록 겁먹은 사람이 많아요. 너무 높으면 거꾸로 바닥 신호로 봐요",
+        "0.5↓ 지나친 낙관 · 0.5~0.7 보통 · 0.7~0.8 불안 · 0.8↑ 공포 (역발상 매수 신호)", "하루 1번, 미국 장 마감 뒤 (한국 아침)"),
+    "rsi_ndx" to IndGuide("나스닥100 선물의 최근 14일 오른 힘 ÷ 내린 힘 (0~100)", "너무 많이 빠졌는지, 너무 많이 올랐는지",
+        "30↓ 과매도 (단기 반등 가능) · 30~70 보통 · 70↑ 과열 (단기 조정 가능)", "하루 1번 (종가 기준)"),
+    "rsi_spx" to IndGuide("S&P500의 최근 14일 오른 힘 ÷ 내린 힘 (0~100)", "너무 많이 빠졌는지, 너무 많이 올랐는지",
+        "30↓ 과매도 (단기 반등 가능) · 30~70 보통 · 70↑ 과열 (단기 조정 가능)", "하루 1번 (종가 기준)"),
     "bitcoin" to IndGuide("비트코인 가격 (달러)", "위험을 감수하려는 심리를 보여줘요",
         "참고용 (하루 ±5%는 흔해요)", "24시간"),
     "ethereum" to IndGuide("이더리움 가격 (달러)", "비트코인과 함께 위험 선호를 보여줘요",
@@ -83,6 +89,8 @@ fun fmtIndicatorValue(ind: Indicator): String {
         "margin_debt" -> String.format("%+.1f%%", v)
         "us10y", "us2y" -> String.format("%.3f%%", v)
         "bei10" -> String.format("%.2f%%", v)
+        "put_call" -> String.format("%.2f", v)
+        "rsi_ndx", "rsi_spx" -> String.format("%.1f", v)
         "hy_spread" -> String.format("%.2f%%p", v)
         "wti", "gold", "bitcoin", "ethereum" -> "$" + fmtNum(v, if (v >= 1000) 0 else 2)
         "kospi_foreign" -> fmtEok(v)
@@ -104,7 +112,7 @@ fun fmtIndicatorChange(ind: Indicator): String {
     if (ind.key in setOf("margin_debt", "kospi_foreign")) return ""
     ind.changePct?.let { if (ind.key !in setOf("us10y", "us2y", "hy_spread", "fear_greed")) return fmtPct(it) }
     val c = ind.change ?: return ""
-    val digits = when (ind.key) { "fear_greed" -> 0; "us10y", "us2y" -> 3; else -> 2 }
+    val digits = when (ind.key) { "fear_greed" -> 0; "us10y", "us2y" -> 3; "rsi_ndx", "rsi_spx" -> 1; else -> 2 }
     return "${arrow(c)}${fmtNum(abs(c), digits)}"
 }
 

@@ -19,8 +19,9 @@ CYCLE = {
     # 모니터링
     "wti": "30분", "nq_fut": "30분", "sox": "美장중", "usdjpy": "30분", "us2y": "30분", "gold": "30분",
     "bei10": "매일", "kospi_foreign": "국내 장중", "bitcoin": "30분", "ethereum": "30분",
+    "put_call": "매일 (美장 마감 후)", "rsi_ndx": "매일 (종가)", "rsi_spx": "매일 (종가)",
 }
-DATE_ONLY = {"hy_spread", "bei10", "kospi_foreign"}
+DATE_ONLY = {"hy_spread", "bei10", "kospi_foreign", "put_call", "rsi_ndx", "rsi_spx"}
 
 
 def load_previous(config):

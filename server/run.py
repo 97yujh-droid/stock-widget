@@ -11,6 +11,7 @@ from history import history_for, market_series, valuation_for
 from scoring import market_score, stock_score
 from summarize import explain_scores, summarize_issues, summarize_market
 from earnings import earnings_lines, get_earnings
+from signals import add_signals
 from charts import build_charts, save_charts
 from publish import build, is_summary_time, load_previous, save
 
@@ -20,6 +21,13 @@ def main():
     t0 = time.time()
     data = collect(config)
     rep = [f"## 서버 실행 결과 ({iso(now_kst())})", ""]
+
+    # 과거 시세 + 풋콜·RSI (AI 시황에도 쓰려고 먼저)
+    series = market_series()
+    try:
+        add_signals(data, series)
+    except Exception as e:
+        rep.append(f"❌ 풋콜·RSI 실패: {e}")
 
     # AI 이슈·시황
     try:
@@ -49,7 +57,6 @@ def main():
         rep.append("ℹ️ 시황은 정해진 시각이 아니라 지난번 요약을 그대로 써요.")
 
     # 점수
-    series = market_series()
     bench = {"KR": series["kospi"], "US": series["spx"]}
     mscore = market_score(data, series)
     sscores, vals, diag, stock_rows = {}, {}, [], {}
@@ -78,7 +85,8 @@ def main():
     size = save(result)
     rep.append(f"📦 결과 파일 public/latest.json 저장 ({size / 1024:.1f}KB)")
     try:
-        charts, cerr = build_charts(config, series, stock_rows, result["market_score"].get("history", []))
+        charts, cerr = build_charts(config, series, stock_rows, result["market_score"].get("history", []),
+                                     data.get("_ndx_rows"))
         csize = save_charts(charts)
         rep.append(f"📈 그래프 파일 public/charts.json 저장 ({csize / 1024:.1f}KB, {len(charts['series'])}개)")
         rep += [f"⚠️ 그래프 실패 {e}" for e in cerr]

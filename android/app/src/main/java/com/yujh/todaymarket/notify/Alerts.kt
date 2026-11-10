@@ -133,7 +133,29 @@ object Alerts {
             }
         }
 
-        // 4) 실적: 하루 전 · 당일 · 발표 뒤 결과
+        // 4) 역발상·과열 신호: 풋/콜 0.8↑, RSI 30↓·70↑ (구간에 들어갈 때 한 번)
+        if (st.alertSignals) {
+            fun zoneAlert(key: String, bucket: Int, title: String, text: String) {
+                val last = p.getInt("sig:$key", -99)
+                if (last != -99 && bucket != last && bucket != 0) send(context, "sig:$key", title, text)
+                edit.putInt("sig:$key", bucket)
+            }
+            data.indicators.firstOrNull { it.key == "put_call" }?.value?.let { v ->
+                zoneAlert("put_call", if (v >= 0.8) 1 else 0, "📉 풋/콜 비율 ${String.format("%.2f", v)} · 공포 구간",
+                    "겁먹은 투자자가 많아요. 0.8 위는 거꾸로 바닥(역발상 매수) 신호로 보기도 해요.")
+            }
+            listOf("rsi_ndx" to "나스닥100", "rsi_spx" to "S&P500").forEach { (k, nm) ->
+                data.indicators.firstOrNull { it.key == k }?.value?.let { v ->
+                    val b = when { v <= 30 -> -1; v >= 70 -> 1; else -> 0 }
+                    zoneAlert(k, b,
+                        if (b < 0) "$nm RSI ${String.format("%.1f", v)} · 과매도" else "$nm RSI ${String.format("%.1f", v)} · 과열",
+                        if (b < 0) "단기간에 많이 빠졌어요. 단기 반등이 나올 수 있는 구간이에요 (추세 상승은 아니에요)."
+                        else "단기간에 많이 올랐어요. 단기 조정이 나올 수 있는 구간이에요.")
+                }
+            }
+        }
+
+        // 5) 실적: 하루 전 · 당일 · 발표 뒤 결과
         if (st.alertEarnings) {
             stocks.forEach { s ->
                 val e = s.earnings ?: return@forEach

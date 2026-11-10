@@ -12,6 +12,8 @@ from scoring import market_score, stock_score
 from summarize import explain_scores, summarize_issues, summarize_market
 from earnings import earnings_lines, get_earnings
 from signals import add_signals
+from schedule import build_schedule
+from tables import build_tables
 from charts import build_charts, save_charts
 from publish import build, is_summary_time, load_previous, save
 
@@ -82,6 +84,23 @@ def main():
     # ---- 결과 파일 ----
     result = build(config, data, issues, market_lines, mscore, mcomment, sscores, scomments, prev,
                    meta={"took_sec": round(time.time() - t0, 1), "ai_model": config["ai"]["model"]})
+    # 주요 일정 · ETF/빅테크 표
+    try:
+        sched, smeta, serr = build_schedule(config, prev)
+        result["schedule"], result["schedule_meta"] = sched, smeta
+        rep.append(f"🗓 주요 일정 {sum(len(d['items']) for d in sched)}개")
+        rep += [f"⚠️ 일정 {e}" for e in serr]
+    except Exception as e:
+        result["schedule"], result["schedule_meta"] = prev.get("schedule", []), prev.get("schedule_meta", {})
+        rep.append(f"❌ 주요 일정 실패: {e}")
+    try:
+        tables, terr = build_tables(prev)
+        result["tables"] = tables
+        rep.append(f"📊 ETF {len(tables.get('etf', []))}개 · 빅테크 {len(tables.get('bigtech', []))}개")
+        rep += [f"⚠️ 표 {e}" for e in terr[:8]]
+    except Exception as e:
+        result["tables"] = prev.get("tables", {})
+        rep.append(f"❌ ETF·빅테크 표 실패: {e}")
     size = save(result)
     rep.append(f"📦 결과 파일 public/latest.json 저장 ({size / 1024:.1f}KB)")
     try:

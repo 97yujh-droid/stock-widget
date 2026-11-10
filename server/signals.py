@@ -11,26 +11,38 @@ from history import cnbc_bars
 CBOE = "https://cdn.cboe.com/data/us/options/market_statistics/daily/{d}_daily_options"
 
 
-def cboe_equity_pc(d):
-    """d(YYYY-MM-DD) 하루의 주식 풋/콜 비율. 없으면 None"""
+_ratio_cache = {}
+NAMES = {"equity": "EQUITY PUT/CALL RATIO", "total": "TOTAL PUT/CALL RATIO"}
+
+
+def cboe_ratios(d):
+    """d(YYYY-MM-DD) 하루의 풋/콜 비율들 {equity, total}. 자료가 없으면 {}"""
+    if d in _ratio_cache:
+        return _ratio_cache[d]
     r = S.get(CBOE.format(d=d), timeout=15)
-    if r.status_code != 200:
-        return None
-    for x in r.json().get("ratios", []):
-        if x.get("name") == "EQUITY PUT/CALL RATIO":
-            try:
-                return float(x["value"])
-            except (TypeError, ValueError):
-                return None
-    return None
+    out = {}
+    if r.status_code == 200:
+        for x in r.json().get("ratios", []):
+            for k, nm in NAMES.items():
+                if x.get("name") == nm:
+                    try:
+                        out[k] = float(x["value"])
+                    except (TypeError, ValueError):
+                        pass
+    _ratio_cache[d] = out
+    return out
 
 
-def put_call_latest():
-    """가장 최근 거래일의 주식 풋/콜 비율 + 그 전 거래일과의 차이"""
+def cboe_equity_pc(d):
+    return cboe_ratios(d).get("equity")
+
+
+def put_call_latest(kind="equity"):
+    """가장 최근 거래일의 풋/콜 비율 + 그 전 거래일과의 차이"""
     found = []
     for back in range(0, 10):
         d = (now_kst() - timedelta(days=back)).strftime("%Y-%m-%d")
-        v = cboe_equity_pc(d)
+        v = cboe_ratios(d).get(kind)
         if v is not None:
             found.append((d, v))
             if len(found) == 2:
@@ -39,7 +51,8 @@ def put_call_latest():
         raise RuntimeError("CBOE 최근 10일 자료 없음")
     (d, v) = found[0]
     prev = found[1][1] if len(found) > 1 else None
-    label = "공포 (역발상 매수 신호)" if v >= 0.8 else "불안" if v >= 0.7 else "보통" if v >= 0.5 else "지나친 낙관"
+    hi, mid, lo = (0.8, 0.7, 0.5) if kind == "equity" else (1.0, 0.9, 0.7)
+    label = "공포 (역발상 매수 신호)" if v >= hi else "불안" if v >= mid else "보통" if v >= lo else "지나친 낙관"
     return {"price": v, "change": round(v - prev, 2) if prev is not None else None, "label": label,
             "as_of": f"{d} (미국 장 마감)", "source": "CBOE"}
 
@@ -76,7 +89,8 @@ def rsi_indicator(rows, name_src):
 def add_signals(data, series):
     """data['monitors'] 에 풋/콜·RSI 추가. series: market_series() 결과"""
     mon = data.setdefault("monitors", {})
-    mon["put_call"] = {"name": "주식 풋/콜 비율", **first_ok(put_call_latest)}
+    mon["put_call"] = {"name": "주식 풋/콜 비율", **first_ok(lambda: put_call_latest("equity"))}
+    mon["put_call_total"] = {"name": "전체 풋/콜 비율", **first_ok(lambda: put_call_latest("total"))}
     ndx = first_ok(lambda: cnbc_bars("@ND.1"), lambda: cnbc_bars(".NDX"))
     data["_ndx_rows"] = ndx if isinstance(ndx, list) else None
     mon["rsi_ndx"] = {"name": "RSI 나스닥100 (14일)", **first_ok(lambda: rsi_indicator(ndx, "나스닥100 선물"))}
@@ -84,7 +98,7 @@ def add_signals(data, series):
     mon["rsi_spx"] = {"name": "RSI S&P500 (14일)", **first_ok(lambda: rsi_indicator(spx, "S&P500"))}
 
 
-def put_call_history(prev_points, max_fetch=130):
+def put_call_history(prev_points, kind="equity", max_fetch=130):
     """그래프용 풋/콜 기록: 지난 기록 + 빠진 날만 새로 받기 (한 번에 최대 max_fetch 일)"""
     have = {p[0]: p[1] for p in (prev_points or [])}
     today = now_kst().date()
@@ -96,11 +110,13 @@ def put_call_history(prev_points, max_fetch=130):
         key = day.strftime("%Y%m%d")
         if key in have:
             continue
-        if fetched >= max_fetch:
-            break
-        fetched += 1
+        ds = day.strftime("%Y-%m-%d")
+        if ds not in _ratio_cache:
+            if fetched >= max_fetch:
+                break
+            fetched += 1
         try:
-            v = cboe_equity_pc(day.strftime("%Y-%m-%d"))
+            v = cboe_ratios(ds).get(kind)
         except Exception:
             v = None
         if v is not None:

@@ -176,7 +176,8 @@ def build_charts(config, series, stock_rows, score_hist, ndx_rows=None):
     # 역발상·과열 신호
     from signals import put_call_history, rsi_series
     try:
-        put("put_call", put_call_history(prev.get("put_call")), 1)
+        put("put_call", put_call_history(prev.get("put_call"), "equity"), 1)
+        put("put_call_total", put_call_history(prev.get("put_call_total"), "total"), 1)
     except Exception as e:
         errors.append(f"풋콜 기록 실패: {e}")
     put("rsi_ndx", rsi_series(ndx_rows) or {"error": "나스닥100 가격 없음"})

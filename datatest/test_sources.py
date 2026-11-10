@@ -477,16 +477,35 @@ def gnews_sched(q):
     return " | ".join((it.findtext("title") or "")[:60] for it in root.findall(".//item")[:6])
 
 
-def signals_check():
-    j = get("https://97yujh-droid.github.io/stock-widget/latest.json").json()
-    m = {i["key"]: i for i in j["indicators"]}
-    c = get("https://97yujh-droid.github.io/stock-widget/charts.json").json()["series"]
-    out = [f"{k}: {m.get(k, {}).get('value')} {m.get(k, {}).get('label')} {m.get(k, {}).get('as_of')} 그래프 {len(c.get(k, []))}점 끝 {c.get(k, [])[-2:]}"
-           for k in ("put_call", "rsi_ndx", "rsi_spx")]
-    return " ‖ ".join(out) + " ‖ 시황: " + " / ".join(j["market_summary"]["lines"])
+sys.path.insert(0, "server")
 
 
-TESTS = [("신호", "풋콜·RSI 발행 확인", signals_check)]
+def sched_test():
+    import json as _j
+    from schedule import build_schedule
+    cfg = _j.load(open("server/config.json", encoding="utf-8"))
+    out, meta, err = build_schedule(cfg, {})
+    lines = [f"오류={err}"]
+    for d in out:
+        lines.append(d["label"] + ": " + " / ".join(f"{i['emoji']}{i['time'] or ''} {i['title']} [{i['detail'] or ''}] {i['source']}" for i in d["items"][:12]))
+    return " ‖ ".join(lines)[:3500]
+
+
+def tables_test():
+    from tables import build_tables
+    t, err = build_tables({})
+    up = [(e["ticker"], e["desc"], e["week"], e["ytd"]) for e in t["etf_up"]]
+    dn = [(e["ticker"], e["desc"], e["week"], e["ytd"]) for e in t["etf_down"]]
+    bt = [(e["ticker"], e["ytd"], e["from_high"], e["week"]) for e in t["bigtech"]]
+    return f"오류={err[:5]} 기준={t['as_of']} 상승={up} 하락={dn} 빅테크={bt}"[:2500]
+
+
+def pc_test():
+    from signals import put_call_latest
+    return f"주식 {put_call_latest('equity')} / 전체 {put_call_latest('total')}"
+
+
+TESTS = [("일정", "주요 일정", sched_test), ("표", "ETF·빅테크", tables_test), ("풋콜", "두 종류", pc_test)]
 
 
 def main():

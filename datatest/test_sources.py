@@ -435,33 +435,58 @@ def front_api():
     return f"HTTP {r.status_code} {paths[:30]}"[:900]
 
 
-def kr(path):
-    r = S.get("https://m.stock.naver.com/api/" + path, timeout=TIMEOUT,
-              headers={"Referer": "https://m.stock.naver.com/", "Accept": "application/json"})
-    if r.status_code != 200:
-        return f"HTTP {r.status_code}"
-    j = r.json()
-    items = j.get("stocks") if isinstance(j, dict) else j
-    if isinstance(j, dict) and items is None:
-        return f"keys={list(j.keys())[:10]} {str(j)[:200]}"
-    if not items:
-        return "빈 목록"
-    x = items[0]
-    pick = {k: x.get(k) for k in ("stockName", "itemCode", "closePrice", "fluctuationsRatio",
-                                   "compareToPreviousClosePrice", "accumulatedTradingValue", "accumulatedTradingVolume",
-                                   "marketValue") if k in x}
-    total = j.get("totalCount") if isinstance(j, dict) else None
-    return f"{len(items)}개 total={total} 첫={pick} keys={list(x.keys())[:25]}"[:600]
+def raw(url, **kw):
+    r = S.get(url, timeout=TIMEOUT, **kw)
+    return f"HTTP {r.status_code} {r.text[:350]}"
 
 
-KR = ["stocks/marketValue/KOSPI?page=1&pageSize=20", "stocks/marketValue/KOSDAQ?page=1&pageSize=20",
-      "stocks/marketValue/ALL?page=1&pageSize=20",
-      "stocks/up/KOSPI?page=1&pageSize=20", "stocks/down/KOSDAQ?page=1&pageSize=20",
-      "stocks/priceTop/KOSPI?page=1&pageSize=20", "stocks/quantTop/KOSPI?page=1&pageSize=20",
-      "stocks/searchTop/KOSPI?page=1&pageSize=20", "stocks/searchTop?page=1&pageSize=20",
-      "stocks/popular?page=1&pageSize=20"]
+def cboe_daily():
+    out = []
+    for back in range(1, 5):
+        d = (datetime.now(KST) - timedelta(days=back)).strftime("%Y-%m-%d")
+        r = S.get(f"https://cdn.cboe.com/data/us/options/market_statistics/daily/{d}_daily_options", timeout=TIMEOUT)
+        out.append(f"{d}:{r.status_code}")
+        if r.status_code == 200:
+            j = r.json()
+            return f"{out} keys={list(j.keys())[:10]} ratios={json.dumps(j.get('ratios'), ensure_ascii=False)[:400]}"
+    return str(out)
 
-TESTS = [("국내순위", c, (lambda c=c: kr(c))) for c in KR]
+
+def cnbc_try(syms):
+    url = ("https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol"
+           f"?symbols={quote('|'.join(syms))}&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json")
+    q = get(url).json()["FormattedQuoteResult"]["FormattedQuote"]
+    return " / ".join(f"{x.get('symbol')}={x.get('last')}({x.get('name', '')[:20]})" for x in q)
+
+
+def nasdaq_cal(days):
+    d = (datetime.now(KST) + timedelta(days=days)).strftime("%Y-%m-%d")
+    j = get(f"https://api.nasdaq.com/api/calendar/earnings?date={d}", headers=NAS_H).json()
+    rows = (j.get("data") or {}).get("rows") or []
+    big = sorted(rows, key=lambda r: -float(re.sub(r"[^0-9.]", "", r.get("marketCap") or "0") or 0))[:5]
+    return f"{d} {len(rows)}개 keys={list(rows[0].keys()) if rows else []} 상위={[(r.get('symbol'), r.get('marketCap'), r.get('time')) for r in big]}"[:600]
+
+
+def treasury_auctions():
+    j = get("https://www.treasurydirect.gov/TA_WS/securities/upcoming?format=json").json()
+    return f"{len(j)}개 {[(x.get('securityTerm'), x.get('auctionDate'), x.get('securityType')) for x in j[:6]]}"
+
+
+def gnews_sched(q):
+    root = ET.fromstring(get(f"https://news.google.com/rss/search?q={quote(q + ' when:7d')}&hl=ko&gl=KR&ceid=KR:ko").content)
+    return " | ".join((it.findtext("title") or "")[:60] for it in root.findall(".//item")[:6])
+
+
+TESTS = [
+    ("풋콜", "CBOE 일별 옵션 통계", cboe_daily),
+    ("풋콜", "CNBC 풋콜 기호", lambda: cnbc_try([".CPCE", "CPCE", ".PCCE", ".CPC", "CPC", ".PCRATIO"])),
+    ("풋콜", "FRED 검색 없음 대체: stooq", lambda: raw("https://stooq.com/q/d/l/?s=^cpce&i=d")),
+    ("ETF", "CNBC ETF 시세", lambda: cnbc_try(["GDX", "TAN", "SOXX", "KWEB", "DRAM", "LYTE", "NCLD", "SPCX", "USO", "XOP"])),
+    ("일정", "Nasdaq 실적 달력 +1일", lambda: nasdaq_cal(1)),
+    ("일정", "Nasdaq 실적 달력 +2일", lambda: nasdaq_cal(2)),
+    ("일정", "미 국채 입찰 일정", treasury_auctions),
+    ("일정", "뉴스: 이번주 증시 일정", lambda: gnews_sched("이번주 증시 주요 일정")),
+]
 
 
 def main():

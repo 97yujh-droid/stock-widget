@@ -131,7 +131,7 @@ def load_previous_charts(config):
     return {}
 
 
-def build_charts(config, series, stock_rows, score_hist):
+def build_charts(config, series, stock_rows, score_hist, ndx_rows=None):
     """series: market_series() 결과, stock_rows: {종목코드: [(날짜, 종가)]}"""
     prev = load_previous_charts(config)
     out, errors = {}, []
@@ -173,6 +173,13 @@ def build_charts(config, series, stock_rows, score_hist):
     put("us2y", first_ok(lambda: cnbc_bars("US2Y"), lambda: fred_series("DGS2")))
     put("gold", first_ok(lambda: cnbc_bars("@GC.1")))
     put("bei10", first_ok(lambda: fred_series("T10YIE")))
+    # 역발상·과열 신호
+    from signals import put_call_history, rsi_series
+    try:
+        put("put_call", put_call_history(prev.get("put_call")), 1)
+    except Exception as e:
+        errors.append(f"풋콜 기록 실패: {e}")
+    put("rsi_ndx", rsi_series(ndx_rows) or {"error": "나스닥100 가격 없음"})
     put("bitcoin", first_ok(lambda: coingecko_hist("bitcoin"), lambda: kraken_hist("XBTUSD")))
     put("ethereum", first_ok(lambda: coingecko_hist("ethereum"), lambda: kraken_hist("ETHUSD")))
     # 마켓 날씨 점수 (하루 1개씩 쌓인 기록)
@@ -191,6 +198,7 @@ def build_charts(config, series, stock_rows, score_hist):
     first_real = real[0][0] if real else "99999999"
     put("market_score", [p for p in back if p[0] < first_real] + real, 1)
     put("spx_ma200", ma_line(long.get("spx")))
+    put("rsi_spx", rsi_series(long.get("spx")) or {"error": "S&P500 가격 없음"})
     # 종목
     for code, rows in stock_rows.items():
         put("stock:" + code, rows if isinstance(rows, list) else {"error": rows.get("error", "")})

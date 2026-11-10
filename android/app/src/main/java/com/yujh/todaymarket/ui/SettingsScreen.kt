@@ -388,6 +388,7 @@ private fun AlertSettings(settings: AppSettings, onChange: (AppSettings) -> Unit
             Toggle("VIX가 25·30을 넘거나 내려올 때", settings.alertVix) { onChange(settings.copy(alertVix = it)) }
             Toggle("마켓 날씨가 바뀔 때 (예: 🌤 → 🌧)", settings.alertZone) { onChange(settings.copy(alertZone = it)) }
             Toggle("내 종목 실적 발표 하루 전 · 발표 뒤", settings.alertEarnings) { onChange(settings.copy(alertEarnings = it)) }
+            Toggle("풋/콜 0.8↑ · RSI 30↓·70↑ 신호", settings.alertSignals) { onChange(settings.copy(alertSignals = it)) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("휴대폰이 30분마다 확인해서 보내요 (최대 30분쯤 늦을 수 있어요).", color = Palette.Faint, fontSize = 11.sp,
                     modifier = Modifier.weight(1f))

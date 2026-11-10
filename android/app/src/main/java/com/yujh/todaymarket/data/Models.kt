@@ -12,6 +12,27 @@ data class MarketData(
     val stocks: List<Stock>,
     val indicators: List<Indicator>,
     val calendar: List<EconEvent> = emptyList(),
+    val schedule: List<ScheduleDay> = emptyList(),
+    val tables: Tables? = null,
+)
+
+/** 주요 일정 하루치 */
+data class ScheduleDay(val date: String, val label: String, val items: List<ScheduleItem>)
+
+data class ScheduleItem(
+    val time: String?, val type: String, val emoji: String, val title: String, val detail: String?,
+    val star: Boolean, val done: Boolean, val source: String,
+)
+
+/** ETF 주간 표 · 빅테크 표 */
+data class Tables(
+    val asOf: String?, val etfUp: List<TableRow>, val etfDown: List<TableRow>, val etf: List<TableRow>,
+    val bigtech: List<TableRow>,
+)
+
+data class TableRow(
+    val ticker: String, val name: String, val price: Double?, val day: Double?, val week: Double?,
+    val ytd: Double?, val fromHigh: Double?,
 )
 
 /** 경제 지표 일정 (CPI, PPI, 고용 등) */
@@ -196,6 +217,28 @@ fun parseMarketData(text: String): MarketData {
                 stale = o.bool("stale"),
                 needInput = o.bool("need_input"),
             )
+        },
+        schedule = j.optJSONArray("schedule").mapObjects { d ->
+            ScheduleDay(
+                date = d.str("date") ?: "", label = d.str("label") ?: "",
+                items = d.optJSONArray("items").mapObjects { i ->
+                    ScheduleItem(
+                        time = i.str("time"), type = i.str("type") ?: "", emoji = i.str("emoji") ?: "•",
+                        title = i.str("title") ?: "", detail = i.str("detail"), star = i.bool("star"),
+                        done = i.bool("done"), source = i.str("source") ?: "",
+                    )
+                },
+            )
+        },
+        tables = j.optJSONObject("tables")?.takeIf { it.has("etf") }?.let { t ->
+            fun rows(k: String) = t.optJSONArray(k).mapObjects { r ->
+                TableRow(
+                    ticker = r.str("ticker") ?: "", name = r.str("name") ?: r.str("desc") ?: "",
+                    price = r.dbl("price"), day = r.dbl("day"), week = r.dbl("week"), ytd = r.dbl("ytd"),
+                    fromHigh = r.dbl("from_high"),
+                )
+            }
+            Tables(t.str("as_of"), rows("etf_up"), rows("etf_down"), rows("etf"), rows("bigtech"))
         },
         calendar = j.optJSONArray("calendar").mapObjects { e ->
             EconEvent(

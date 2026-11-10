@@ -76,8 +76,14 @@ fun DetailScreen(
         }
         if (settings.showMarketScore) item { MarketScoreCard(data) }
         if (settings.showSummary) item { SummaryCard(data) }
+        if (data.schedule.any { it.items.isNotEmpty() }) item { ScheduleCard(data.schedule) }
         item { SectionTitle(if (settings.showStockScore) "관심 종목 · 종목 점수" else "관심 종목") }
         items(settings.arrange(data.stocks), key = { it.code }) { StockCard(it, settings) }
+        data.tables?.let { t ->
+            item { SectionTitle("주요 ETF · 빅테크") }
+            item { EtfCard(t) }
+            item { BigTechCard(t) }
+        }
         val scoreInds = data.indicators.filter { it.group == "score" }
         val monInds = data.indicators.filter { it.group == "monitor" }
         item { SectionTitle("점수 지표 (시장 점수에 반영)") }
@@ -86,7 +92,7 @@ fun DetailScreen(
             item { SectionTitle("모니터링 지표 (점수에는 반영 안 함)") }
             items(monInds, key = { "m_" + it.key }) { IndicatorCard(it) }
         }
-        if (data.calendar.isNotEmpty()) item { CalendarCard(data) }
+        if (data.calendar.isNotEmpty() && data.schedule.none { it.items.isNotEmpty() }) item { CalendarCard(data) }
         item {
             Text(
                 "점수와 요약은 참고용이에요. 투자 결정은 직접 하셔야 해요.",

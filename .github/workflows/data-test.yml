@@ -21,6 +21,7 @@ jobs:
       - run: python datatest/test_sources.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

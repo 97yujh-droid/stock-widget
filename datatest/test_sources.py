@@ -477,16 +477,51 @@ def gnews_sched(q):
     return " | ".join((it.findtext("title") or "")[:60] for it in root.findall(".//item")[:6])
 
 
-TESTS = [
-    ("풋콜", "CBOE 일별 옵션 통계", cboe_daily),
-    ("풋콜", "CNBC 풋콜 기호", lambda: cnbc_try([".CPCE", "CPCE", ".PCCE", ".CPC", "CPC", ".PCRATIO"])),
-    ("풋콜", "FRED 검색 없음 대체: stooq", lambda: raw("https://stooq.com/q/d/l/?s=^cpce&i=d")),
-    ("ETF", "CNBC ETF 시세", lambda: cnbc_try(["GDX", "TAN", "SOXX", "KWEB", "DRAM", "LYTE", "NCLD", "SPCX", "USO", "XOP"])),
-    ("일정", "Nasdaq 실적 달력 +1일", lambda: nasdaq_cal(1)),
-    ("일정", "Nasdaq 실적 달력 +2일", lambda: nasdaq_cal(2)),
-    ("일정", "미 국채 입찰 일정", treasury_auctions),
-    ("일정", "뉴스: 이번주 증시 일정", lambda: gnews_sched("이번주 증시 주요 일정")),
-]
+sys.path.insert(0, "server")
+
+
+def sched_test():
+    import json as _j
+    from schedule import build_schedule
+    cfg = _j.load(open("server/config.json", encoding="utf-8"))
+    out, meta, err = build_schedule(cfg, {})
+    lines = [f"오류={err}"]
+    for d in out:
+        lines.append(d["label"] + ": " + " / ".join(f"{i['emoji']}{i['time'] or ''} {i['title']} [{i['detail'] or ''}] {i['source']}" for i in d["items"][:12]))
+    return " ‖ ".join(lines)[:3500]
+
+
+def tables_test():
+    from tables import build_tables
+    t, err = build_tables({})
+    up = [(e["ticker"], e["desc"], e["week"], e["ytd"]) for e in t["etf_up"]]
+    dn = [(e["ticker"], e["desc"], e["week"], e["ytd"]) for e in t["etf_down"]]
+    bt = [(e["ticker"], e["ytd"], e["from_high"], e["week"]) for e in t["bigtech"]]
+    return f"오류={err[:5]} 기준={t['as_of']} 상승={up} 하락={dn} 빅테크={bt}"[:2500]
+
+
+def pc_test():
+    from signals import put_call_latest
+    return f"주식 {put_call_latest('equity')} / 전체 {put_call_latest('total')}"
+
+
+def auc_raw():
+    j = get("https://www.treasurydirect.gov/TA_WS/securities/upcoming?format=json").json()
+    x = [y for y in j if y.get("securityType") in ("Note", "Bond")][:2]
+    return json.dumps([{k: v for k, v in y.items() if v not in (None, "", "No")} for y in x], ensure_ascii=False)[:900]
+
+
+def ai_raw():
+    import json as _j
+    import schedule as sc
+    from collect import google_news
+    cfg = _j.load(open("server/config.json", encoding="utf-8"))
+    n = google_news("이번주 증시 주요 일정", 10)
+    ev, nm = sc._ai_events(cfg, ["Test Corp"])
+    return f"뉴스 {len(n)}개 예: {[x['title'][:40] for x in n[:3]]} ‖ AI 이벤트 {ev} ‖ 이름 {nm}"[:2000]
+
+
+TESTS = [("일정", "주요 일정", sched_test)]
 
 
 def main():

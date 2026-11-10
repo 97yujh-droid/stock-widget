@@ -521,7 +521,7 @@ def ai_raw():
     return f"뉴스 {len(n)}개 예: {[x['title'][:40] for x in n[:3]]} ‖ AI 이벤트 {ev} ‖ 이름 {nm}"[:2000]
 
 
-TESTS = [("일정", "국채 입찰 원본", auc_raw), ("일정", "AI 이벤트 원본", ai_raw)]
+TESTS = [("일정", "주요 일정", sched_test)]
 
 
 def main():

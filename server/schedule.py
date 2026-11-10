@@ -9,14 +9,14 @@ import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from collect import KST, get, google_news, iso, now_kst
+from collect import KST, get, iso, now_kst
 from earnings import NAS_H
 from publish import parse_when
 
 NY = ZoneInfo("America/New_York")
 DAYS = 7
 BIG_CAP = 50e9          # 이 이상 시가총액 회사만 실적 일정에 (관심 종목은 항상)
-PER_DAY_EARN = 6
+PER_DAY_EARN = 5
 AI_REUSE_HOURS = 6
 
 # 자주 나오는 경제지표 이름 (나머지는 AI 가 번역)
@@ -79,6 +79,8 @@ def _earnings(config):
         except Exception:
             continue
         rows = sorted(rows, key=lambda r: -_cap(r.get("marketCap")))
+        seen = set()
+        rows = [r for r in rows if not (r.get("name") in seen or seen.add(r.get("name")))]
         picked = [r for r in rows if r.get("symbol") in mine]
         picked += [r for r in rows if _cap(r.get("marketCap")) >= BIG_CAP and r.get("symbol") not in mine][:PER_DAY_EARN]
         for r in picked:
@@ -104,13 +106,29 @@ def _auctions():
         term, typ = x.get("securityTerm") or "", x.get("securityType") or ""
         if typ not in ("Note", "Bond") and "TIPS" not in typ:
             continue  # 단기 국채(Bill)는 너무 많아서 뺌
-        date = x.get("auctionDate") or x.get("auctionDateYear") or ""
+        date = x.get("auctionDate") or x.get("competitiveAuctionCloseDate") or ""
         m = re.match(r"(\d{4}-\d{2}-\d{2})", str(date))
         if not m:
             continue
         d = datetime.fromisoformat(m.group(1))
         t = datetime(d.year, d.month, d.day, 13, 0, tzinfo=NY).astimezone(KST)
         out.append({"t": t, "type": "auction", "en": f"{term} {typ}"})
+    return out
+
+
+def _news_week(query, limit):
+    """구글 뉴스 최근 7일 (일정 기사는 주초에 나와서 하루치로는 부족)"""
+    import xml.etree.ElementTree as ET
+    from email.utils import parsedate_to_datetime
+    from urllib.parse import quote
+    root = ET.fromstring(get(f"https://news.google.com/rss/search?q={quote(query + ' when:7d')}&hl=ko&gl=KR&ceid=KR:ko").content)
+    out = []
+    for it in root.findall(".//item")[:limit]:
+        title, src = it.findtext("title") or "", it.findtext("source") or ""
+        if src and title.endswith(" - " + src):
+            title = title[: -len(" - " + src)]
+        pub = it.findtext("pubDate")
+        out.append({"title": title, "source": src, "time": iso(parsedate_to_datetime(pub)) if pub else None})
     return out
 
 
@@ -135,7 +153,7 @@ def _ai_events(config, need_names):
     for q in ("이번주 증시 주요 일정", "다음주 증시 주요 일정", "미국 증시 이번주 일정", "IPO 상장 예정 미국",
               "미국 정치 일정 이번주", "빅테크 행사 컨퍼런스 일정"):
         try:
-            heads += [f"- {n['title']} ({n['source']}, {n['time']})" for n in google_news(q, 10)]
+            heads += [f"- {n['title']} ({n['source']}, {n['time']})" for n in _news_week(q, 12)]
         except Exception:
             pass
     prompt = f"""오늘은 한국 날짜 {today:%Y-%m-%d}이야. 아래 뉴스 제목에서 오늘부터 {DAYS}일 안에 있을

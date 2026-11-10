@@ -505,7 +505,23 @@ def pc_test():
     return f"주식 {put_call_latest('equity')} / 전체 {put_call_latest('total')}"
 
 
-TESTS = [("일정", "주요 일정", sched_test), ("표", "ETF·빅테크", tables_test), ("풋콜", "두 종류", pc_test)]
+def auc_raw():
+    j = get("https://www.treasurydirect.gov/TA_WS/securities/upcoming?format=json").json()
+    x = [y for y in j if y.get("securityType") in ("Note", "Bond")][:2]
+    return json.dumps([{k: v for k, v in y.items() if v not in (None, "", "No")} for y in x], ensure_ascii=False)[:900]
+
+
+def ai_raw():
+    import json as _j
+    import schedule as sc
+    from collect import google_news
+    cfg = _j.load(open("server/config.json", encoding="utf-8"))
+    n = google_news("이번주 증시 주요 일정", 10)
+    ev, nm = sc._ai_events(cfg, ["Test Corp"])
+    return f"뉴스 {len(n)}개 예: {[x['title'][:40] for x in n[:3]]} ‖ AI 이벤트 {ev} ‖ 이름 {nm}"[:2000]
+
+
+TESTS = [("일정", "국채 입찰 원본", auc_raw), ("일정", "AI 이벤트 원본", ai_raw)]
 
 
 def main():

@@ -477,16 +477,16 @@ def gnews_sched(q):
     return " | ".join((it.findtext("title") or "")[:60] for it in root.findall(".//item")[:6])
 
 
-TESTS = [
-    ("풋콜", "CBOE 일별 옵션 통계", cboe_daily),
-    ("풋콜", "CNBC 풋콜 기호", lambda: cnbc_try([".CPCE", "CPCE", ".PCCE", ".CPC", "CPC", ".PCRATIO"])),
-    ("풋콜", "FRED 검색 없음 대체: stooq", lambda: raw("https://stooq.com/q/d/l/?s=^cpce&i=d")),
-    ("ETF", "CNBC ETF 시세", lambda: cnbc_try(["GDX", "TAN", "SOXX", "KWEB", "DRAM", "LYTE", "NCLD", "SPCX", "USO", "XOP"])),
-    ("일정", "Nasdaq 실적 달력 +1일", lambda: nasdaq_cal(1)),
-    ("일정", "Nasdaq 실적 달력 +2일", lambda: nasdaq_cal(2)),
-    ("일정", "미 국채 입찰 일정", treasury_auctions),
-    ("일정", "뉴스: 이번주 증시 일정", lambda: gnews_sched("이번주 증시 주요 일정")),
-]
+def signals_check():
+    j = get("https://97yujh-droid.github.io/stock-widget/latest.json").json()
+    m = {i["key"]: i for i in j["indicators"]}
+    c = get("https://97yujh-droid.github.io/stock-widget/charts.json").json()["series"]
+    out = [f"{k}: {m.get(k, {}).get('value')} {m.get(k, {}).get('label')} {m.get(k, {}).get('as_of')} 그래프 {len(c.get(k, []))}점 끝 {c.get(k, [])[-2:]}"
+           for k in ("put_call", "rsi_ndx", "rsi_spx")]
+    return " ‖ ".join(out) + " ‖ 시황: " + " / ".join(j["market_summary"]["lines"])
+
+
+TESTS = [("신호", "풋콜·RSI 발행 확인", signals_check)]
 
 
 def main():
